@@ -7,15 +7,15 @@ The responses are consistent with the time-domain simulations of Triangle-Simula
 
 2. install modified WF4PY (if use WF4PY CPU waveform): 
 
-cd WF4PY 
+   cd WF4PY 
 
-python setup.py install --user  
+   python setup.py install --user  
 
 3. install BBHx (if use BBHx GPU waveform)  
    
-see the instructions of BBHx.   
+   see the instructions of BBHx.   
 
 4. install MCMC tools to run the notebooks: 
 
-pip install eryn corner  
+   pip install eryn corner  
 
