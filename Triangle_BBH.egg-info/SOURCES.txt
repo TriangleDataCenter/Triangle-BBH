@@ -1,0 +1,12 @@
+LICENSE
+README.md
+setup.py
+Triangle_BBH/Fisher.py
+Triangle_BBH/Response.py
+Triangle_BBH/Utils.py
+Triangle_BBH/Waveform.py
+Triangle_BBH/__init__.py
+Triangle_BBH.egg-info/PKG-INFO
+Triangle_BBH.egg-info/SOURCES.txt
+Triangle_BBH.egg-info/dependency_links.txt
+Triangle_BBH.egg-info/top_level.txt
