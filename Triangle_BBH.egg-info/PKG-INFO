@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: Triangle_BBH
 Version: 0.1.0
 Summary: A collection of Python scripts for Binary Black Hole (BBH) analysis
@@ -12,13 +12,22 @@ Classifier: Operating System :: OS Independent
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license
+Dynamic: requires-python
+Dynamic: summary
 
 # Triangle-BBH
 Frequency-domain BBH TDI response template and basic analysis tools. TDI-2.0 response wrapper of 2 waveforms BBHx (https://github.com/mikekatz04/BBHx) and WF4PY (https://github.com/CosmoStatGW/WF4Py). 
 The responses are consistent with the time-domain simulations of Triangle-Simulator. 
 
 # Installation 
-1. install triangle 
+1. install triangle and activate triangle environment
 
 2. install modified WF4PY (if use WF4PY CPU waveform): 
 
@@ -33,4 +42,8 @@ The responses are consistent with the time-domain simulations of Triangle-Simula
 4. install MCMC tools to run the notebooks: 
 
    pip install eryn corner  
+
+5. install Triangle_BBH 
+   
+   pip install -e . (or python setup.py install --user)
 
