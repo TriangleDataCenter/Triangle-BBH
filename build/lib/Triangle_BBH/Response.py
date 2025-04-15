@@ -1,9 +1,12 @@
-import numpy as np 
+import numpy as np
+import scipy.interpolate as interp 
 try:
     import cupy as xp
+    import cupyx.scipy.interpolate as xinterp
     # print("has cupy")
 except (ImportError, ModuleNotFoundError) as e:
     import numpy as xp
+    import scipy.interpolate as xinterp  
     # print("no cupy")
 
 from scipy.interpolate import interp1d, CubicSpline
@@ -563,13 +566,16 @@ class FDTDIResponseGenerator():
         
 
 
+
+
+
 class BBHxFDTDIResponseGenerator():
     """  
         The rule of Fourier transform is the same as S. Marsat, which is an ``unusual'' convention,
         aiming to ensure h_lm(f) neq 0 when m > 0 and f > 0.
         Accordingly, h_lm(f) = A_lm(f) * exp[-i Psi_lm(f)].
         The waveform class outputs Phi_lm(f) = -Psi_lm(f), thus h_lm(f) = A_lm(f) exp[i Phi_lm(f)]
-        The conjugate will be taken at last to convert to the usual convension.
+        While, the complex conjugate of results will be taken at last to convert to the usual FT convension.
         
         Parameters should be given in the form of dictionary, with the keys denoting the names of parameters, 
         including:
@@ -601,8 +607,10 @@ class BBHxFDTDIResponseGenerator():
         self.use_gpu = use_gpu
         if use_gpu: 
             self.xp = xp 
+            self.xinterp = xinterp
         else: 
             self.xp = np 
+            self.xinterp = interp
             
         self.POS_time_int = orbit_class.POS_time_int
         self.POS_data_int = orbit_class.POS_data_int
@@ -621,9 +629,9 @@ class BBHxFDTDIResponseGenerator():
     def SpinWeightedSphericalHarmonic(self, theta, phi, l, m, s=-2):
         # Taken from arXiv:0709.0093v3 eq. (II.7), (II.8) and LALSimulation for the s=-2 case and up to l=4
         """  
-        The results are in consistency with LDC Radler manual.
-        theta, phi: spherical coordinates of the source frame (i.e. iota0 and phi0 in the LDC manual). 
-        This function allows vectorized inputs and outputs.
+            The results are in consistency with LDC Radler manual.
+            theta, phi: spherical coordinates of the source frame (i.e. iota0 and phi0 in the LDC manual). 
+            This function allows vectorized inputs and outputs.
         """
         
         if s != -2:
@@ -691,8 +699,8 @@ class BBHxFDTDIResponseGenerator():
         
     def WaveVector(self, parameters):
         """ 
-        returns:
-        k: wave vector of GW
+            returns:
+            k: wave vector of GW
         """
         l, b = parameters['longitude'], parameters['latitude']
         # shape of k: (Nevents, 3)
@@ -701,8 +709,8 @@ class BBHxFDTDIResponseGenerator():
     
     def PolarBasis(self, parameters):
         """ 
-        returns:
-        ep, ec: polarization bases of GW in the source frame 
+            returns:
+            ep, ec: polarization bases of GW in the source frame 
         """
         l, b, p = parameters['longitude'], parameters['latitude'], parameters['psi']
         Nevents = l.shape[0]
@@ -990,26 +998,39 @@ class BBHxFDTDIResponseGenerator():
         TDIGeneration='2nd',
         optimal_combination=True,
         output_by_mode=False, 
+        interpolation=False, 
+        interpolate_points=1024, 
         ):
         """   
             Calculate 1st/2nd-generation TDI response in the frequency domain.
             Work flow:
-            frequency grids, Waveform, time grids -->
-            PolarBasis_lm, WaveVector -->  
-            TDI TransferFunction --> 
-            TDI response
+            frequency grids, Waveform, time grids 
+            --> PolarBasis_lm, WaveVector 
+            --> TDI TransferFunction 
+            --> TDI response
             Args: 
                 parameters: dictionary of parameters, each item can be either a float or a numpy array 
-                freqs: frequencies where the responses are calculated, xp array of shape (Nfreqs) or (Nevents, Nfreqs)
+                freqs: frequencies where the responses are calculated, xp array of shape (Nfreqs) or (Nevents, Nfreqs), if interpolation=True, freqs should be of shape (Nfreqs)
                 modes: list of the modes calculated 
-                tmin, tmax: minimum / maximum time of waveform in [day] unit
+                tmin, tmax: minimum / maximum time of waveform in [day] 
                 tc_at_constellation: whether tc is the coalescence time at constellation center (True) or SSB (False)
                 TDIGeneration: "1st" or "2nd", standing for the 1st or 2nd generation Michelson channels, respectively 
                 optimal_combination: True for AET, False for XYZ
+                output_by_mode: whether to return the waveform summed over modes, or return modes separately 
+                interpolation: whether to calculate on orignal frequency grid or interpolate from a sparse grid 
+                interpolate_points: number of frequencies in the sparse grid 
         """
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
-        fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs)
+        if interpolation: 
+            # freqs_tmp  = self.xp.atleast_2d(freqs) # (Nevents, Nfreqs)
+            # ln_fstart_tmp = self.xp.log(freqs_tmp[:, 0]) # (Nevents)
+            # ln_fend_tmp = self.xp.log(freqs_tmp[:, -1]) # (Nevents)
+            # freqs_sparse = self.xp.exp(self.xp.linspace(ln_fstart_tmp[:, None], ln_fend_tmp[:, None], 1024, axis=1)) # (Nevents, 1024)
+            freqs_sparse = self.xp.logspace(self.xp.log10(freqs[0]) - 1e-1, self.xp.log10(freqs[-1]) + 1e-1, interpolate_points) # (1024,)
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs_sparse)
+        else: 
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs)
         
         # convert scalar parameters to arraies 
         parameter_dict = parameters.copy()
@@ -1034,28 +1055,81 @@ class BBHxFDTDIResponseGenerator():
             X = self.xp.zeros((Nmode, Nevents, Nfreqs_out), dtype=self.xp.complex128)
             Y = self.xp.zeros((Nmode, Nevents, Nfreqs_out), dtype=self.xp.complex128)
             Z = self.xp.zeros((Nmode, Nevents, Nfreqs_out), dtype=self.xp.complex128)
-            for imode, mode in enumerate(modes):
-                _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
-                Xamp_int = GTDI['X'] * amps[mode]
-                Yamp_int = GTDI['Y'] * amps[mode]
-                Zamp_int = GTDI['Z'] * amps[mode]
-                phase_int = phas[mode]
-                X[imode] = Xamp_int * self.xp.exp(1.j * phase_int)
-                Y[imode] = Yamp_int * self.xp.exp(1.j * phase_int)
-                Z[imode] = Zamp_int * self.xp.exp(1.j * phase_int) 
+            if interpolation: 
+                for imode, mode in enumerate(modes):
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    Xamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Xamp_int, axis=1) 
+                    Yamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Yamp_int, axis=1)
+                    Zamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Zamp_int, axis=1)
+                    phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
+                    Xamp = Xamp_func(freqs)
+                    Yamp = Yamp_func(freqs)
+                    Zamp = Zamp_func(freqs)
+                    phase = phase_func(freqs)
+                    X[imode] = Xamp * self.xp.exp(1.j * phase)
+                    Y[imode] = Yamp * self.xp.exp(1.j * phase)
+                    Z[imode] = Zamp * self.xp.exp(1.j * phase) 
+
+            else: 
+                for imode, mode in enumerate(modes):
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    X[imode] = Xamp_int * self.xp.exp(1.j * phase_int)
+                    Y[imode] = Yamp_int * self.xp.exp(1.j * phase_int)
+                    Z[imode] = Zamp_int * self.xp.exp(1.j * phase_int) 
         else:
             X = self.xp.zeros((Nevents, Nfreqs_out), dtype=self.xp.complex128)
             Y = self.xp.zeros((Nevents, Nfreqs_out), dtype=self.xp.complex128)
             Z = self.xp.zeros((Nevents, Nfreqs_out), dtype=self.xp.complex128)
-            for mode in modes:
-                _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
-                Xamp_int = GTDI['X'] * amps[mode]
-                Yamp_int = GTDI['Y'] * amps[mode]
-                Zamp_int = GTDI['Z'] * amps[mode]
-                phase_int = phas[mode]
-                X += Xamp_int * self.xp.exp(1.j * phase_int)
-                Y += Yamp_int * self.xp.exp(1.j * phase_int)
-                Z += Zamp_int * self.xp.exp(1.j * phase_int)
+            if interpolation: 
+                for mode in modes:
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+
+                    # Xamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Xamp_int, axis=1)
+                    # Yamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Yamp_int, axis=1)
+                    # Zamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Zamp_int, axis=1)
+                    # phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
+                    # Xamp = Xamp_func(freqs)
+                    # Yamp = Yamp_func(freqs)
+                    # Zamp = Zamp_func(freqs)
+                    # phase = phase_func(freqs)
+
+                    Xamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Xamp_int), axis=1)
+                    Yamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Yamp_int), axis=1)
+                    Zamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Zamp_int), axis=1)
+                    Xamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Xamp_int), axis=1)
+                    Yamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Yamp_int), axis=1)
+                    Zamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Zamp_int), axis=1)
+                    phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
+                    Xamp = Xamp_func_re(freqs) + Xamp_func_im(freqs) * 1.j 
+                    Yamp = Yamp_func_re(freqs) + Yamp_func_im(freqs) * 1.j 
+                    Zamp = Zamp_func_re(freqs) + Zamp_func_im(freqs) * 1.j 
+                    phase = phase_func(freqs)
+
+                    X += Xamp * self.xp.exp(1.j * phase)
+                    Y += Yamp * self.xp.exp(1.j * phase)
+                    Z += Zamp * self.xp.exp(1.j * phase)
+            else: 
+                for mode in modes:
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    X += Xamp_int * self.xp.exp(1.j * phase_int)
+                    Y += Yamp_int * self.xp.exp(1.j * phase_int)
+                    Z += Zamp_int * self.xp.exp(1.j * phase_int)
         if Nevents == 1:
             X = self.xp.conjugate(X[0])
             Y = self.xp.conjugate(Y[0])
@@ -1087,5 +1161,7 @@ class BBHxFDTDIResponseGenerator():
         return X, Y, Z
             
             
+        
+        
         
         
