@@ -273,6 +273,7 @@ class Likelihood:
         
         # calculate heterodyne 
         het_r = self.xp.transpose(het_h / self.het_h0) # (N_het_f, 3)
+        het_r = self.xp.nan_to_num(het_r, 0.) # deal with the nan caused by divide 0 
         het_r0 = het_r[:-1] # (Nb, 3)
         het_r1 = (het_r[1:] - het_r0) / self.het_df[:, self.xp.newaxis] # (Nb, 3)
         
@@ -284,9 +285,17 @@ class Likelihood:
         # 2_ d_h term 
         LL2 = self.xp.sum(self.xp.matmul(self.A0, het_r0[:, :, self.xp.newaxis]))
         LL2 += self.xp.sum(self.xp.matmul(self.A1, het_r1[:, :, self.xp.newaxis]))
+
+        # # test only 
+        # self.LL1 = LL1 
+        # self.LL2 = LL2 
+        # self.het_h = het_h
+        # self.het_r = het_r
+        # self.het_r0 = het_r0
+        # self.het_r1 = het_r1
         
-        # test 
-        # LL1 = 0. # test 
+        # test only 
+        # LL1 = 0.  
         self.output = [LL1, self.xp.real(LL2)]
         
         if self.use_gpu: 
@@ -316,6 +325,7 @@ class Likelihood:
         
         # calculate heterodyne 
         het_r = self.xp.transpose(het_h / self.het_h0, (0, 2, 1)) # (Nevents, N_het_f, 3)
+        het_r = self.xp.nan_to_num(het_r, 0.) # deal with the nan caused by divide 0 
         het_r0 = het_r[:, :-1, :] # (Nevents, Nb, 3)
         het_r1 = (het_r[:, 1:, :] - het_r0) / self.het_df[:, self.xp.newaxis] # (Nevents, Nb, 3)
         # print("shape of r, r0, r1", het_r.shape, het_r0.shape, het_r1.shape)
