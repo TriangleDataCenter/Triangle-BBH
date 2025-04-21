@@ -1,5 +1,5 @@
 # Triangle-BBH
-Frequency-domain BBH TDI response template and basic analysis tools. TDI-2.0 response wrapper of 2 waveforms BBHx (https://github.com/mikekatz04/BBHx) and WF4PY (https://github.com/CosmoStatGW/WF4Py). 
+Frequency-domain BBH TDI response template and basic analysis tools, including TDI-2.0 response wrappers of 2 waveforms BBHx (https://github.com/mikekatz04/BBHx, CPU & GPU) and WF4PY (https://github.com/CosmoStatGW/WF4Py, CPU only). 
 The responses are consistent with the time-domain simulations of Triangle-Simulator. 
 
 # Installation 
