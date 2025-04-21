@@ -94,6 +94,7 @@ def ParamArr2ParamDict(params):
 
 
 class Likelihood:
+    # TODO: mode-by-mode heterodyne for the PhenonmHM waveform 
     def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False):
         """ 
         Args: 
