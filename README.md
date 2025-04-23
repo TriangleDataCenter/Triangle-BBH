@@ -23,3 +23,5 @@ The responses are consistent with the time-domain simulations of Triangle-Simula
    
    pip install -e . (or python setup.py install --user)
 
+# Comparison with time-domain simulation 
+![image](Figures/TD_vs_FD.jpg)
