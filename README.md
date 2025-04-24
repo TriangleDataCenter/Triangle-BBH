@@ -4,7 +4,7 @@ The responses are consistent with the time-domain simulations of Triangle-Simula
 This code should only be regarded as an illustrative example for the preliminary analysis of Taiji Data Challenge, and is not intended to serve as a solution to all the challenges.
 
 # Installation 
-1. install triangle and activate triangle environment
+1. install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) 
 
 2. install modified WF4PY (if use WF4PY CPU waveform): 
 
