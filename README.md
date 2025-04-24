@@ -1,6 +1,7 @@
 # Triangle-BBH
-Frequency-domain BBH TDI-2.0 response template and basic analysis tools, including the TDI-2.0 response wrappers of 2 waveforms: (1) the IMRPhenomD \& HM waveform of BBHx (https://github.com/mikekatz04/BBHx, CPU \& GPU) and (2) the  IMRPhenomD \& HM waveform of WF4PY (https://github.com/CosmoStatGW/WF4Py, CPU only). 
+Frequency-domain BBH TDI-2.0 response template and basic analysis tools, including the TDI-2.0 response wrappers of 2 waveforms: (1) the IMRPhenomD \& HM waveform of [BBHx](https://github.com/mikekatz04/BBHx) (CPU \& GPU) and (2) the  IMRPhenomD \& HM waveform of [WF4PY](https://github.com/CosmoStatGW/WF4Py) (CPU only). 
 The responses are consistent with the time-domain simulations of Triangle-Simulator. 
+This code should only be regarded as an illustrative example for the preliminary analysis of Taiji Data Challenge, and is not intended to serve as a solution to all the challenges.
 
 # Installation 
 1. install triangle and activate triangle environment
@@ -13,7 +14,7 @@ The responses are consistent with the time-domain simulations of Triangle-Simula
 
 3. install BBHx (if use BBHx GPU waveform)  
    
-   see the instructions of BBHx.   
+   follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).   
 
 4. install MCMC tools to run the notebooks: 
 
