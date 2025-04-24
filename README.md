@@ -6,21 +6,21 @@ This code should only be regarded as an illustrative example for the preliminary
 # Installation 
 1. install triangle and activate triangle environment
 
-2a. install modified WF4PY (if use WF4PY CPU waveform): 
+2. install modified WF4PY (if use WF4PY CPU waveform): 
 
    cd WF4PY 
 
    python setup.py install --user  
 
-2b. install BBHx (if use BBHx GPU waveform)  
+3. install BBHx (if use BBHx GPU waveform)  
    
    follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).   
 
-3. install MCMC tools to run the notebooks: 
+4. install MCMC tools to run the notebooks: 
 
    pip install eryn corner  
 
-4. install Triangle_BBH 
+5. install Triangle_BBH 
    
    pip install -e . (or python setup.py install --user)
 
