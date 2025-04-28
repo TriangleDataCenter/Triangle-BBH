@@ -1,2 +1,0 @@
-WF4Py
-WF4Py/waveform_models
