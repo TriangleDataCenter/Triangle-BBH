@@ -23,8 +23,7 @@ Besides, Example 0 - 2 might be useful for the researchers who are interested in
    python setup.py install --user  
    ```
 4. **Install BBHx**    
-   install ``BBHx`` (optional, if use `BBHx` GPU waveform):      
-   follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).   
+   install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).   
 5. **Install Triangle_BBH** 
    ```sh   
    pip install -e . (or python setup.py install --user)
