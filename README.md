@@ -6,30 +6,33 @@ There are at least three factors in TDC that this examples do not account for: 1
 Besides, Example 0 - 2 might be useful for the researchers who are interested in studying GW sciences with Bayesian method.    
 
 # Installation 
-1. install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) 
-
-2. install modified `WF4PY` (if use WF4PY CPU waveform): 
-
-```bash
-   cd WF4PY 
-   python setup.py install --user  
-```
-
-3. install `BBHx` (if use `BBHx` GPU waveform)  
-   
+1. **Install Triangle-Simulator**    
+   install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) and activate the tri_env environment by
+   ```sh 
+   conda activate tri_env 
+   ```
+2. **Clone the Repository**    
+   ```sh
+   git clone https://github.com/TriangleDataCenter/Triangle-BBH 
+   cd Triangle-BBH
+   ```
+3. **Install WF4PY**
+   install modified `WF4PY` (optional, if use ``WF4PY`` CPU waveform): 
+   ```sh
+      cd WF4PY 
+      python setup.py install --user  
+   ```
+4. **Install BBHx**
+   install ``BBHx`` (optional, if use `BBHx` GPU waveform):      
    follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).   
-
-4. install MCMC tools to run the notebooks: 
-
-```bash
-   pip install eryn corner  
-```
-
-5. install Triangle_BBH 
-
-```bash   
-   pip install -e . (or python setup.py install --user)
-```
+5. **Install Triangle_BBH** 
+   ```sh   
+      pip install -e . (or python setup.py install --user)
+   ```
+6. **Install MCMC Tools to Run the Examples** 
+   ```sh
+      pip install eryn corner  
+   ```
 
 # Comparison with time-domain simulation 
 ![image](Figures/TD_vs_FD.jpg)
