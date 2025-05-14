@@ -6,6 +6,9 @@ There are at least three factors in TDC that this examples do not account for: 1
 Besides, Example 0 - 2 might be useful for the researchers who are interested in studying GW sciences with Bayesian method.    
 
 # Installation 
+
+(Tested platform: Ubuntu22.04 (recommanded), MacOS15)
+
 1. **Install Triangle-Simulator**    
    install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) and activate the tri_env environment by
    ```sh 
@@ -19,15 +22,16 @@ Besides, Example 0 - 2 might be useful for the researchers who are interested in
 3. **Install WF4PY**    
    install modified `WF4PY` (optional, if use ``WF4PY`` CPU waveform): 
    ```sh
-   cd WF4PY 
-   python setup.py install --user  
+   cd WF4Py 
+   pip install . 
+   cd .. 
    ```
 4. **Install BBHx**    
    install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).
    
 5. **Install Triangle_BBH** 
    ```sh   
-   pip install -e . (or python setup.py install --user)
+   pip install -e . 
    ```
 6. **Install MCMC Tools to Run the Examples** 
    ```sh
