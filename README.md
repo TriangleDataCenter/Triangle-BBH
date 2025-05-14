@@ -1,8 +1,9 @@
 # Triangle-BBH
 Frequency-domain BBH TDI-2.0 response template and basic analysis tools, including the TDI-2.0 response wrappers of 2 waveforms: (1) the IMRPhenomD \& HM waveform of [BBHx](https://github.com/mikekatz04/BBHx) (CPU \& GPU) and (2) the  IMRPhenomD \& HM waveform of [WF4PY](https://github.com/CosmoStatGW/WF4Py) (CPU only). 
 The responses are consistent with the time-domain simulations of **Triangle-Simulator** (see Example 3). 
-Also offered is an illustrative example (Example 4) for the preliminary analysis of **Taiji Data Challenge**, while it **should not** be regarded as a solution to all the challenges.
-Besides, Example 0 - 2 might be useful for the researchers who are interested in studying GW sciences with Bayesian method.  
+Also offered is an illustrative example (Example 4) for the preliminary analysis of **Taiji Data Challenge**, while it **should not** be regarded as a solution to all the challenges. 
+There are at least three factors in TDC that this examples do not account for: 1) more realistic noises, 2) signal overlap, 3) more complex waveforms. 
+Besides, Example 0 - 2 might be useful for the researchers who are interested in studying GW sciences with Bayesian method.    
 
 # Installation 
 1. install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) 
