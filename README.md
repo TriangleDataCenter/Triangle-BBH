@@ -7,7 +7,7 @@ Besides, Example 0 - 2 might be useful for the researchers who are interested in
 
 # Installation 
 
-(Tested platform: Ubuntu22.04 (recommanded), MacOS15)
+Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that installation will success on all the unix systems, even the aforementioned two.
 
 1. **Install Triangle-Simulator**    
    install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) and activate the tri_env environment by
