@@ -42,7 +42,7 @@ Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that
 ![image](Figures/TD_vs_FD.jpg)
 
 # References
-(Please make sure to cite BBHx or WF4PY if Triangle-BBH is used in your published research).
+Please make sure to cite BBHx or WF4PY if Triangle-BBH is used in your published research.
 
 - Taiji Data Challenge \& Triangle: [the TDC \& Triangle paper](TBD)
 - The frequency-domain detector response formalism of inspiral-merger-ringdown waveforms for space-based detectors: [S. Marsat et al, arXiv:1806.10734](https://arxiv.org/abs/1806.10734), [S. Marsat et al, Phys. Rev. D 103, 083011 (2021)](https://doi.org/10.1103/PhysRevD.103.083011)
