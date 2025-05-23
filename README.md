@@ -43,7 +43,7 @@ Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that
 # References
 Please make sure to cite BBHx or WF4PY if Triangle-BBH is used in your published research.
 
-- Taiji Data Challenge II: [the TDC II paper]([TBD](https://arxiv.org/abs/2505.16500)).
+- Taiji Data Challenge II: [the TDC II paper](https://arxiv.org/abs/2505.16500).
 - The frequency-domain detector response formalism of inspiral-merger-ringdown waveforms for space-based detectors: [S. Marsat et al, arXiv:1806.10734](https://arxiv.org/abs/1806.10734), [S. Marsat et al, Phys. Rev. D 103, 083011 (2021)](https://doi.org/10.1103/PhysRevD.103.083011)
 - BBHx: [BBHx documentations](https://mikekatz04.github.io/BBHx/html/index.html)
 - WF4PY: [WF4PY documentations](https://wf4py.readthedocs.io/en/latest/index.html)
