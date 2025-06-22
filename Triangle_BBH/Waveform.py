@@ -116,6 +116,8 @@ class WaveformGenerator():
         fgrids = fgrids.T 
             
         # set t_ref = 0, phi_ref = 0 
+        # This step may result in slightly different phases for different resolutions. Therefore it is recommanded to keep consistency in terms of frequency resolution,  
+        #  or otherwise, optimization of tc, phic would be required to get coincident results. 
         ind_ref = np.argmax(fgrids ** 2 * amps_out[(2, 2)], axis=1)
         f_ref = fgrids[np.arange(Nevents), ind_ref] # (Nevents)
         f_ref_1 = fgrids[np.arange(Nevents), ind_ref - 1]
