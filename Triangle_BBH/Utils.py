@@ -300,10 +300,11 @@ class Likelihood:
         # LL1 = 0.  
         self.output = [LL1, self.xp.real(LL2)]
         
+        res = self.xp.nan_to_num(self.xp.real(-0.5 * LL1 + LL2), nan=-self.xp.infty)
         if self.use_gpu: 
-            return self.xp.real(-0.5 * LL1 + LL2).get()
+            return res.get()
         else:
-            return self.xp.real(-0.5 * LL1 + LL2)
+            return res
         
         
     def het_log_like_vectorized(self, parameter_array):
@@ -346,10 +347,11 @@ class Likelihood:
         # LL1 = 0. # test 
         self.output_vec = [LL1, self.xp.real(LL2)]
         
+        res = self.xp.nan_to_num(self.xp.real(-0.5 * LL1 + LL2), nan=-self.xp.infty)
         if self.use_gpu: 
-            return self.xp.real(-0.5 * LL1 + LL2).get()
+            return res.get()
         else:
-            return self.xp.real(-0.5 * LL1 + LL2)
+            return res
         
     def marginal_log_like(self, parameter_array):
         """ 
