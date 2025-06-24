@@ -218,6 +218,7 @@ class Likelihood:
             freqs=self.het_frequency,
             **self.response_kwargs,
         ) # (3, N_het_f)
+        self.het_h0[self.het_h0==0.] = 1e-25 
         
         # confine the frequency and data to be within the boundaries of sparce grid 
         inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
