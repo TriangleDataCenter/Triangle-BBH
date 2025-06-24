@@ -276,11 +276,11 @@ class MultiChannelFisher():
             name1 = self.analyze_param_names[i1]
             for i2 in range(i1, self.num_analyze_params):
                 name2 = self.analyze_param_names[i2]
-                self.Fisher[i1][i2] = FrequencyDomainCovarianceInnerProduct(
+                self.Fisher[i1][i2] = np.real(FrequencyDomainCovarianceInnerProduct(
                     data_channels1=self.param_derivatives[name1], 
                     data_channels2=self.param_derivatives[name2], 
                     inv_cov=self.invcov
-                    )
+                    ))
         self.Fisher += self.Fisher.T - np.diag(self.Fisher.diagonal())
 
     def calculate_errors(self):

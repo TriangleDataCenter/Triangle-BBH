@@ -49,7 +49,7 @@ def FrequencyDomainCovarianceInnerProduct(data_channels1, data_channels2, inv_co
         data_channels1, 2: numpy arraies of shapes (3, Nf)
         inv_cov: numpy array of shape (Nf, 3, 3), with Cov_IJ = CSD_IJ / 4 / Df, CSD_IJ = 2<I J^*>/T
     Returns: 
-        d_1^\dagger C^-1 d_2, complex scalar (not the conventional definition of inner product, whish should be a real number)
+        d_1^\dagger C^-1 d_2, complex scalar (not the conventional definition of inner product, which should be a real number)
     """
     data_expanded1 = np.transpose(data_channels1)[:,np.newaxis,:] # (Nf, 1, 3)
     data_expanded2 = np.transpose(data_channels2)[:,np.newaxis,:] # (Nf, 1, 3)
