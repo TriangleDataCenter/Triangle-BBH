@@ -26,13 +26,18 @@ Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that
    cd .. 
    ```
 4. **Install BBHx**    
-   install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html).
+   install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html). 
+   for a brief instruction, please run
+   ```
+   conda install gcc_linux-64 gxx_linux-64 gsl lapack=3.6.1 numpy scipy Cython
+   ```
+   before installing bbhx from source. 
    
-5. **Install Triangle_BBH** 
+6. **Install Triangle_BBH** 
    ```sh   
    pip install -e . 
    ```
-6. **Install MCMC Tools to Run the Examples** 
+7. **Install MCMC Tools to Run the Examples** 
    ```sh
    pip install eryn corner  
    ```
