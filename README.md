@@ -29,7 +29,7 @@ Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that
    install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html). 
    for a brief instruction, please run
    ```
-   conda install gcc_linux-64 gxx_linux-64 gsl lapack=3.6.1 numpy scipy Cython
+   conda install -c conda-forge gcc_linux-64 gxx_linux-64 gsl lapack=3.6.1 numpy scipy Cython
    ```
    and
    ```
