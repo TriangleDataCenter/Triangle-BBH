@@ -31,7 +31,11 @@ Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that
    ```
    conda install gcc_linux-64 gxx_linux-64 gsl lapack=3.6.1 numpy scipy Cython
    ```
-   before installing bbhx from source. 
+   and
+   ```
+   pip install cupy-cudaxx.xx
+   ```
+   (with xx.xx being the version of cupy that is compatible with your cuda toolkits) before installing bbhx from source. 
    
 6. **Install Triangle_BBH** 
    ```sh   
