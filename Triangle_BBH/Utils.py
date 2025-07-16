@@ -182,7 +182,7 @@ class Likelihood:
             base_waveform: None or numpy array of shape (3, Nf)
             num_het_frequency: number of sparse frequencies to calculate the waveform perturbation, N_het_f = Nb + 1 
         """
-        if base_waveform == None:
+        if base_waveform is None:
             self.h0 = self.response_generator.Response(
                 parameters=ParamArr2ParamDict(base_parameters),
                 freqs=self.frequency,
