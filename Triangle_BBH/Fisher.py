@@ -234,21 +234,25 @@ class MultiChannelFisher():
             if num_iterate >= iteration_threshold:
                 raise ValueError("Not converged after 50 iterations.")
             if (num_iterate % 10 == 0):
-                print('Iteration No.', num_iterate)
+                if self.verbose > 0:
+                    print('Iteration No.', num_iterate)
             shift = shift / factor
             derivative2 = self.get_derivative(param_name=param_name, param_shift=shift)
             Fisher_element2 = FrequencyDomainCovarianceSNR(data_channels=derivative2, inv_cov=self.invcov)
             error_record.append(1. / np.sqrt(Fisher_element2))
-            print('error =', error_record[-1])
+            if self.verbose > 0:
+                print('error =', error_record[-1])
             
             if num_iterate == 1:
                 rel_deff = np.sqrt(np.var([error_record[-2], error_record[-1]])) / np.abs(error_record[-1])
             else:
                 rel_deff = np.sqrt(np.var([error_record[-3], error_record[-2], error_record[-1]])) / np.abs(error_record[-1])
-            print('shift =', shift, 'relative diff =', rel_deff)
+            if self.verbose > 0:
+                print('shift =', shift, 'relative diff =', rel_deff)
     
         self.analyze_param_step_dict[param_name] = shift
-        print('shift of parameter', param_name, 'is', shift)
+        if self.verbose > 0:
+            print('shift of parameter', param_name, 'is', shift)
 
     def auto_test_step(self, factor=2., threshold=1e-4, iteration_threshold=50):
         """ 
@@ -256,9 +260,11 @@ class MultiChannelFisher():
         """
         for k, v in self.analyze_param_step_dict.items():
             if v < 0:
-                print('\n ========= testing parameter', k, '==========')
+                if self.verbose > 0:
+                    print('\n ========= testing parameter', k, '==========')
                 self.test_step(param_name=k, init_shift=np.abs(v), factor=factor, threshold=threshold, iteration_threshold=iteration_threshold)
-        print('all parameters tested.')
+        if self.verbose > 0:
+            print('all parameters tested.')
 
     def calculate_Fisher(self):
         """
