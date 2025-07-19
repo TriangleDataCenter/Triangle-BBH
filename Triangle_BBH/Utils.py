@@ -460,6 +460,9 @@ class Likelihood:
 
 
 
+
+
+
 import copy 
 
 class Fstatistics(Likelihood):
@@ -640,7 +643,8 @@ class Fstatistics(Likelihood):
         extrinsic_parameters["psi"] = 0.5 * np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 1] + Across*a[:, 2]))
         extrinsic_parameters["coalescence_phase"] = np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 2] + Across*a[:, 1])) / (-2.)
         extrinsic_parameters["psi"][extrinsic_parameters["psi"]<0.] += PI 
-        extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += PI 
+        extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += 2.*PI 
+        # extrinsic_parameters["inclination"] = np.arccos(-Across/A)
         
         if a.shape[0] == 1:
             extrinsic_parameters_out = dict() 
