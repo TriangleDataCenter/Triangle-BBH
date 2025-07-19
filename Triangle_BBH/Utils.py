@@ -639,6 +639,8 @@ class Fstatistics(Likelihood):
         A = Aplus + np.sqrt(Aplus**2 + Across**2)
         extrinsic_parameters["psi"] = 0.5 * np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 1] + Across*a[:, 2]))
         extrinsic_parameters["coalescence_phase"] = np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 2] + Across*a[:, 1])) / (-2.)
+        extrinsic_parameters["psi"][extrinsic_parameters["psi"]<0.] += PI 
+        extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += PI 
         
         if a.shape[0] == 1:
             extrinsic_parameters_out = dict() 
