@@ -6,6 +6,8 @@ except (ImportError, ModuleNotFoundError) as e:
     import numpy as xp
     # print("no cupy")
 
+from scipy.interpolate import CubicSpline, interp1d
+
 PI = 3.141592653589793
 
 
@@ -208,11 +210,39 @@ class Likelihood:
                 **self.response_kwargs,
             ) # (3, N_het_f)
         else: 
-            interp_amplitude = self.xp.abs(self.h0) # (3, Nf)
-            interp_phase = self.xp.unwrap(self.xp.angle(self.h0)) # (3, Nf)
-            self.het_h0 = self.xp.array([
-                self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_amplitude[iii]) * self.xp.exp(1.j * self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_phase[iii])) for iii in range(3)
-            ]) # (3, N_het_f)
+            interp_f = self.frequency.copy() # (Nf)
+            interp_amplitude1 = self.xp.abs(self.h0[0]) # (Nf)
+            interp_phase1 = self.xp.unwrap(self.xp.angle(self.h0[0])) # (Nf)
+            interp_amplitude2 = self.xp.abs(self.h0[1]) # (Nf)
+            interp_phase2 = self.xp.unwrap(self.xp.angle(self.h0[1])) # (Nf)
+            interp_amplitude3 = self.xp.abs(self.h0[2]) # (Nf)
+            interp_phase3 = self.xp.unwrap(self.xp.angle(self.h0[2])) # (Nf)
+            if self.use_gpu: 
+                interp_f = interp_f.get() 
+                interp_amplitude1 = interp_amplitude1.get() 
+                interp_phase1 = interp_phase1.get() 
+                interp_amplitude2 = interp_amplitude2.get() 
+                interp_phase2 = interp_phase2.get() 
+                interp_amplitude3 = interp_amplitude3.get() 
+                interp_phase3 = interp_phase3.get()       
+            interp_amplitude_func1 = interp1d(interp_f, interp_amplitude1, kind="cubic", bounds_error=False, fill_value=0.)
+            interp_phase_func1 = interp1d(interp_f, interp_phase1, kind="cubic", bounds_error=False, fill_value=0.)
+            interp_amplitude_func2 = interp1d(interp_f, interp_amplitude2, kind="cubic", bounds_error=False, fill_value=0.)
+            interp_phase_func2 = interp1d(interp_f, interp_phase2, kind="cubic", bounds_error=False, fill_value=0.)
+            interp_amplitude_func3 = interp1d(interp_f, interp_amplitude3, kind="cubic", bounds_error=False, fill_value=0.)
+            interp_phase_func3 = interp1d(interp_f, interp_phase3, kind="cubic", bounds_error=False, fill_value=0.)
+            if self.use_gpu:
+                self.het_h0 = self.xp.array([
+                    interp_amplitude_func1(self.het_frequency.get()) * np.exp(1.j * interp_phase_func1(self.het_frequency.get())), 
+                    interp_amplitude_func2(self.het_frequency.get()) * np.exp(1.j * interp_phase_func2(self.het_frequency.get())), 
+                    interp_amplitude_func3(self.het_frequency.get()) * np.exp(1.j * interp_phase_func3(self.het_frequency.get())), 
+                ]) # (3, N_het_f)
+            else: 
+                self.het_h0 = self.xp.array([
+                    interp_amplitude_func1(self.het_frequency) * self.xp.exp(1.j * interp_phase_func1(self.het_frequency)), 
+                    interp_amplitude_func2(self.het_frequency) * self.xp.exp(1.j * interp_phase_func2(self.het_frequency)), 
+                    interp_amplitude_func3(self.het_frequency) * self.xp.exp(1.j * interp_phase_func3(self.het_frequency)), 
+                ]) # (3, N_het_f)
         
         # refine the sparse grid to ensure no zero waveforms 
         # valid_idx = self.xp.where(self.xp.abs(self.het_h0[0]) != 0.)[0]
@@ -230,9 +260,18 @@ class Likelihood:
                 **self.response_kwargs,
             ) # (3, N_het_f)
         else: 
-            self.het_h0 = self.xp.array([
-                self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_amplitude[iii]) * self.xp.exp(1.j * self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_phase[iii])) for iii in range(3)
-            ]) # (3, N_het_f)
+            if self.use_gpu:
+                self.het_h0 = self.xp.array([
+                    interp_amplitude_func1(self.het_frequency.get()) * np.exp(1.j * interp_phase_func1(self.het_frequency.get())), 
+                    interp_amplitude_func2(self.het_frequency.get()) * np.exp(1.j * interp_phase_func2(self.het_frequency.get())), 
+                    interp_amplitude_func3(self.het_frequency.get()) * np.exp(1.j * interp_phase_func3(self.het_frequency.get())), 
+                ]) # (3, N_het_f)
+            else: 
+                self.het_h0 = self.xp.array([
+                    interp_amplitude_func1(self.het_frequency) * self.xp.exp(1.j * interp_phase_func1(self.het_frequency)), 
+                    interp_amplitude_func2(self.het_frequency) * self.xp.exp(1.j * interp_phase_func2(self.het_frequency)), 
+                    interp_amplitude_func3(self.het_frequency) * self.xp.exp(1.j * interp_phase_func3(self.het_frequency)), 
+                ]) # (3, N_het_f)
         self.het_h0[self.het_h0==0.] = 1e-25 
         
         # confine the frequency and data to be within the boundaries of sparce grid 
