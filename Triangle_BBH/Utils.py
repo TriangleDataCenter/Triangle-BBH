@@ -95,6 +95,7 @@ def ParamArr2ParamDict(params):
     return p 
 
 
+
 class Likelihood:
     # TODO: mode-by-mode heterodyne for the PhenonmHM waveform 
     def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False):
@@ -200,11 +201,18 @@ class Likelihood:
         self.het_frequency = self.xp.logspace(self.xp.log10(FMIN), self.xp.log10(FMAX), num_het_frequency) # N_het_f
         
         # calculate base waveform at the sparce grid (1st try)
-        self.het_h0 = self.response_generator.Response(
-            parameters=ParamArr2ParamDict(base_parameters),
-            freqs=self.het_frequency,
-            **self.response_kwargs,
-        ) # (3, N_het_f)
+        if base_waveform is None:
+            self.het_h0 = self.response_generator.Response(
+                parameters=ParamArr2ParamDict(base_parameters),
+                freqs=self.het_frequency,
+                **self.response_kwargs,
+            ) # (3, N_het_f)
+        else: 
+            interp_amplitude = self.xp.abs(self.h0) # (3, Nf)
+            interp_phase = self.xp.unwrap(self.xp.angle(self.h0)) # (3, Nf)
+            self.het_h0 = self.xp.array([
+                self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_amplitude[iii]) * self.xp.exp(1.j * self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_phase[iii])) for iii in range(3)
+            ]) # (3, N_het_f)
         
         # refine the sparse grid to ensure no zero waveforms 
         # valid_idx = self.xp.where(self.xp.abs(self.het_h0[0]) != 0.)[0]
@@ -215,11 +223,16 @@ class Likelihood:
         self.het_frequency = self.xp.logspace(self.xp.log10(tmpf[0]), self.xp.log10(tmpf[-1]), num_het_frequency) # N_het_f
         
         # calculate base waveform at the sparce grid (final)
-        self.het_h0 = self.response_generator.Response(
-            parameters=ParamArr2ParamDict(base_parameters),
-            freqs=self.het_frequency,
-            **self.response_kwargs,
-        ) # (3, N_het_f)
+        if base_waveform is None: 
+            self.het_h0 = self.response_generator.Response(
+                parameters=ParamArr2ParamDict(base_parameters),
+                freqs=self.het_frequency,
+                **self.response_kwargs,
+            ) # (3, N_het_f)
+        else: 
+            self.het_h0 = self.xp.array([
+                self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_amplitude[iii]) * self.xp.exp(1.j * self.xp.interp(x=self.het_frequency, xp=self.frequency, fp=interp_phase[iii])) for iii in range(3)
+            ]) # (3, N_het_f)
         self.het_h0[self.het_h0==0.] = 1e-25 
         
         # confine the frequency and data to be within the boundaries of sparce grid 
@@ -455,13 +468,7 @@ class Likelihood:
         tmp1 = self.xp.matmul(self.xp.conjugate(data_expanded1), inv_cov) # (Nf, 1, 3)
         tmp2 = self.xp.matmul(tmp1, data_expanded_transposed2) # (Nf, 1, 1)
         return self.xp.sum(tmp2)
-            
-
-
-
-
-
-
+    
 
 import copy 
 
@@ -513,6 +520,44 @@ class Fstatistics(Likelihood):
 
         inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(1,2,3)) # (Nevent)
         return self.RE(inners) # (Nevent)
+    
+    # def self_inner_product_vectorized_margin_time(self, template_channels, full_frequencies=None, valid_indices=None):
+    #     """ 
+    #         template_channels: shape (Nevent, Nchannel, Nfreq)
+    #     """
+    #     residual = self.TRANS(template_channels, (0, 2, 1)) # (Nevent, 3, Nf) -> (Nevent, Nf, 3)
+    #     residual_dagger = self.CONJ(residual[:, :, self.NX, :]) # (Nevent, Nf, 1, 3)
+    #     residual = residual[:, :, :, self.NX] # (Nevent, Nf, 3, 1)
+    #     inners_f = self.RE(self.SUM(self.MATMUL(self.MATMUL(residual_dagger, self.invserse_covariance_matrix), residual), axis=(2,3))) # (Nevent, Nf)
+    #     if full_frequencies is not None: 
+    #         inners_f_filled = self.xp.zeros((inners_f.shape[0], full_frequencies.shape), dtype=self.xp.float64) # (Nevent, Nf_filled)
+    #         inners_f_filled[:, valid_indices] = inners_f
+    #     else: 
+    #         inners_f_filled = inners_f # (Nevent, Nf_filled=Nf)
+    #     inners_t = self.xp.fft.irfft(inners_f_filled, axis=-1) # (Nevent, Nf_filled)
+    #     inners = self.xp.max(inners_t, axis=-1) # (Nevent)
+    #     return inners 
+    
+    # def inner_product_vectorized_margin_time(self, template_channels1, template_channels2, full_frequencies=None, valid_indices=None):
+    #     """ 
+    #         template_channels1: shape (Nevent, Nchannel, Nfreq)
+    #         template_channels2: shape (Nevent, Nchannel, Nfreq)
+    #     """
+    #     residual1 = self.TRANS(template_channels1, (0, 2, 1)) # (Nevent, 3, Nf) -> (Nevent, Nf, 3)
+    #     residual_dagger1 = self.CONJ(residual1[:, :, self.NX, :]) # (Nevent, Nf, 1, 3)
+
+    #     residual2 = self.TRANS(template_channels2, (0, 2, 1)) # (Nevent, 3, Nf) -> (Nevent, Nf, 3)
+    #     residual2 = residual2[:, :, :, self.NX] # (Nevent, Nf, 3, 1)
+
+    #     inners_f = self.RE(self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(2,3))) # (Nevent, Nf)
+    #     if full_frequencies is not None: 
+    #         inners_f_filled = self.xp.zeros((inners_f.shape[0], full_frequencies.shape), dtype=self.xp.float64) # (Nevent, Nf_filled)
+    #         inners_f_filled[:, valid_indices] = inners_f
+    #     else: 
+    #         inners_f_filled = inners_f # (Nevent, Nf_filled=Nf)
+    #     inners_t = self.xp.fft.irfft(inners_f_filled, axis=-1) # (Nevent, Nf_filled)
+    #     inners = self.xp.max(inners_t, axis=-1) # (Nevent)
+    #     return inners # (Nevent)
 
     def calculate_Fstat_vectorized(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
         """  
@@ -612,6 +657,105 @@ class Fstatistics(Likelihood):
         else: 
             return res 
         
+    # def calculate_Fstat_vectorized_margin_time(self, intrinsic_parameters, return_a=False, return_recovered_wave=False, fiducial_tc=0.):
+    #     """  
+    #     calculate F-statistics for a batch of events TODO: expand to HM waveform 
+    #     Args: 
+    #         intrinsic_parameters: dictionary of intrinsic parameters (except for D, iota, phic, psi, tc), each item is a numpy array of shape (Nevent). 
+    #     Returns: 
+    #         F-statistics of events 
+    #     """
+    #     Nevent = len(np.atleast_1d(intrinsic_parameters["chirp_mass"]))
+        
+    #     full_parameters1 = copy.deepcopy(intrinsic_parameters)
+    #     full_parameters1["luminosity_distance"] = np.ones(Nevent) * 0.25 
+    #     full_parameters1["coalescence_phase"] = np.zeros(Nevent)
+    #     full_parameters1["inclination"] = np.ones(Nevent) * PI / 2. 
+    #     full_parameters1["psi"] = np.zeros(Nevent)
+    #     full_parameters1["coalescence_time"] = fiducial_tc
+    #     # print("1st parameter set:") # TEST 
+    #     # print(full_parameters1) # TEST 
+
+    #     temp1 = self.response_generator.Response(
+    #         parameters=full_parameters1,
+    #         freqs=self.frequency,
+    #         **self.response_kwargs,
+    #     ) # (Nchannel=3, Nevent, Nfreq)
+        
+    #     full_parameters2 = copy.deepcopy(full_parameters1)
+    #     full_parameters2["psi"] = np.ones(Nevent) * PI / 4. 
+    #     # print("2nd parameter set:") # TEST 
+    #     # print(full_parameters2) # TEST 
+
+    #     temp2 = self.response_generator.Response(
+    #         parameters=full_parameters2,
+    #         freqs=self.frequency,
+    #         **self.response_kwargs,
+    #     ) # (Nchannel=3, Nevent, Nfreq)
+
+    #     if Nevent == 1:
+    #         temp1 = temp1[:, self.NX, :]
+    #         temp2 = temp2[:, self.NX, :]
+
+    #     X1 = self.TRANS(temp1, axes=(1, 0, 2)) # (Nevent, Nchannel, Nfreq)
+    #     X2 = 1.j * X1 # (Nevent, Nchannel, Nfreq)
+    #     X3 = self.TRANS(temp2, axes=(1, 0, 2)) # (Nevent, Nchannel, Nfreq)
+    #     X4 = 1.j * X3 # (Nevent, Nchannel, Nfreq) 
+    #     # print("shape of X1:", X1.shape) # TEST 
+        
+    #     data_expand = self.data[self.NX, :, :] # (1, Nchannel, Nfreq)
+    #     Nvector = self.TRANS(self.xp.array([
+    #         self.inner_product_vectorized_margin_time(data_expand, X1), 
+    #         self.inner_product_vectorized_margin_time(data_expand, X2), 
+    #         self.inner_product_vectorized_margin_time(data_expand, X3), 
+    #         self.inner_product_vectorized_margin_time(data_expand, X4), 
+    #     ])) # (4, Nevent) -> (Nevent, 4) inner products, all real numbers 
+    #     # print("shape of N vector:", Nvector.shape) # TEST 
+        
+    #     M12 = self.inner_product_vectorized_margin_time(X1, X2) # (Nevent), real numbers 
+    #     M13 = self.inner_product_vectorized_margin_time(X1, X3)
+    #     M14 = self.inner_product_vectorized_margin_time(X1, X4)
+    #     M23 = self.inner_product_vectorized_margin_time(X2, X3)
+    #     M24 = self.inner_product_vectorized_margin_time(X2, X4)
+    #     M34 = self.inner_product_vectorized_margin_time(X3, X4)
+    #     Mmatrix = self.TRANS(self.xp.array([
+    #         [self.self_inner_product_vectorized_margin_time(X1), M12, M13, M14], 
+    #         [M12, self.self_inner_product_vectorized_margin_time(X2), M23, M24], 
+    #         [M13, M23, self.self_inner_product_vectorized_margin_time(X3), M34], 
+    #         [M14, M24, M34, self.self_inner_product_vectorized_margin_time(X4)]
+    #     ]), axes=(2, 0, 1)) # (4, 4, Nevent) -> (Nevent, 4, 4) inner products, all real numbers 
+    #     # print("shape of M matrix:", Mmatrix.shape) # TEST 
+        
+    #     invMmatrix = self.xp.linalg.inv(Mmatrix) # (Nevent, 4, 4)
+        
+    #     Nvector_col = Nvector[..., self.NX] # (Nevent, 4, 1)
+    #     NM = self.MATMUL(invMmatrix, Nvector_col) # (Nevent, 4, 1)
+    #     Nvector_row = Nvector[:, self.NX, :] # (Nevent, 1, 4)
+    #     NMN = self.MATMUL(Nvector_row, NM) # (Nevent, 1, 1)
+        
+    #     res = 0.5 * NMN[:, 0, 0] # (Nevent) Fstat 0.5 * N^T M^{-1} N
+        
+    #     if return_a:
+    #         res_a = NM.squeeze(axis=-1) # (Nevent, 4)
+    #         if self.use_gpu:
+    #             return res_a.get() # (Nevent, 4)
+    #         else: 
+    #             return res_a # (Nevent, 4)
+            
+    #     if return_recovered_wave: 
+    #         res_a = NM.squeeze(axis=-1) # (Nevent, 4)
+    #         res_wf = res_a[:, 0] * self.TRANS(X1, axes=(1, 2, 0)) # (Nchannel, Nfreq, Nevent)
+    #         res_wf += res_a[:, 1] * self.TRANS(X2, axes=(1, 2, 0))
+    #         res_wf += res_a[:, 2] * self.TRANS(X3, axes=(1, 2, 0))
+    #         res_wf += res_a[:, 3] * self.TRANS(X4, axes=(1, 2, 0)) 
+    #         return self.TRANS(res_wf, (0, 2, 1)) # (Nchannel, Nevent, Nfreq)
+
+    #     # else:
+    #     if self.use_gpu:
+    #         return res.get() # (Nevent)
+    #     else: 
+    #         return res 
+        
     @staticmethod
     def a_to_extrinsic_vectorized(a):
         """ 
@@ -641,7 +785,7 @@ class Fstatistics(Likelihood):
         Across = P - Q 
         A = Aplus + np.sqrt(Aplus**2 + Across**2)
         extrinsic_parameters["psi"] = 0.5 * np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 1] + Across*a[:, 2]))
-        extrinsic_parameters["coalescence_phase"] = np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 2] + Across*a[:, 1])) / (-2.)
+        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 2] + Across*a[:, 1])) 
         extrinsic_parameters["psi"][extrinsic_parameters["psi"]<0.] += PI 
         extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += 2.*PI 
         # extrinsic_parameters["inclination"] = np.arccos(-Across/A)
