@@ -186,6 +186,7 @@ class Likelihood:
             base_parameters: None or numpy array of shape (Nparams)
             base_waveform: None or numpy array of shape (3, Nf)
             num_het_frequency: number of sparse frequencies to calculate the waveform perturbation, N_het_f = Nb + 1 
+            NOTE: currently we only recommand the use of base parameters rather than base waveform 
         """
         if base_waveform is None:
             self.h0 = self.response_generator.Response(
@@ -246,7 +247,7 @@ class Likelihood:
         
         # refine the sparse grid to ensure no zero waveforms 
         # valid_idx = self.xp.where(self.xp.abs(self.het_h0[0]) != 0.)[0]
-        valid_idx = self.xp.where(self.xp.abs(self.het_h0[0]) > 1e-23)[0]
+        valid_idx = self.xp.where(self.xp.abs(self.het_h0[0]) > 1e-25)[0]
         tmpf = self.het_frequency[valid_idx]
         
         # create sparce grid of frequencies (final)
