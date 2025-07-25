@@ -776,13 +776,13 @@ class Fstatistics(Likelihood):
         if extrinsic_parameters["coalescence_phase"] < 0.: 
             extrinsic_parameters["coalescence_phase"] += 2.*PI
         
-        if a.shape[0] == 1:
-            extrinsic_parameters_out = dict() 
-            for k, v in extrinsic_parameters.items():
-                extrinsic_parameters_out[k] = v[0]
-            return extrinsic_parameters_out
-        else:              
-            return extrinsic_parameters
+        # if a.shape[0] == 1:
+        #     extrinsic_parameters_out = dict() 
+        #     for k, v in extrinsic_parameters.items():
+        #         extrinsic_parameters_out[k] = v[0]
+        #     return extrinsic_parameters_out
+        # else:              
+        return extrinsic_parameters
         
     @staticmethod
     def a_to_extrinsic_vectorized(a):
@@ -821,7 +821,7 @@ class Fstatistics(Likelihood):
         if a.shape[0] == 1:
             extrinsic_parameters_out = dict() 
             for k, v in extrinsic_parameters.items():
-                extrinsic_parameters_out[k] = v[0]
+                extrinsic_parameters_out[k] = float(v[0])
             return extrinsic_parameters_out
         else:              
             return extrinsic_parameters
