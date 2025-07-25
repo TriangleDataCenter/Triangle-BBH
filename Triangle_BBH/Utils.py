@@ -100,7 +100,7 @@ def ParamArr2ParamDict(params):
 
 class Likelihood:
     # TODO: mode-by-mode heterodyne for the PhenonmHM waveform 
-    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False):
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False, verbose=0):
         """ 
         Args: 
             response_generator: generate frequency-domain TDI responses for given parameters 
@@ -129,9 +129,10 @@ class Likelihood:
         self.data = self.xp.array(data)
         self.invserse_covariance_matrix = self.xp.array(self.invserse_covariance_matrix)
         
-        print("number of freuqncies:", len(frequency))
-        print("min and max frequencies:", self.xp.min(frequency), self.xp.max(frequency))
-        print("response kwargs:", self.response_kwargs)
+        if verbose > 0:
+            print("number of freuqncies:", len(frequency))
+            print("min and max frequencies:", self.xp.min(frequency), self.xp.max(frequency))
+            print("response kwargs:", self.response_kwargs)
         
         self.parameter_names = ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
         self.channel_names = ["X2", "Y2", "Z2"]
