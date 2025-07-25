@@ -737,7 +737,7 @@ class Fstatistics(Likelihood):
 
         # else:
         if self.use_gpu:
-            return res # (Nevent)
+            return res.get() # (Nevent)
         else: 
             return res 
 
