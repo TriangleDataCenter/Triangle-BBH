@@ -415,10 +415,6 @@ class FDTDIResponseGenerator():
             returns the delay of coalescence time at constellation center w.r.t SSB 
             tc = tc^SSB + tc^delay --> tc^SSB = tc - tc^delay
         """
-        # p1 = self.PositionFunctions['1'](parameters['coalescence_time'] * DAY)
-        # p2 = self.PositionFunctions['2'](parameters['coalescence_time'] * DAY)
-        # p3 = self.PositionFunctions['3'](parameters['coalescence_time'] * DAY)
-        # p0 = (p1 + p2 + p3) / 3. 
         tc_SI = parameters['coalescence_time'] * DAY # (Nevent)
         p0 = np.transpose(np.array([
             np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 0]),
@@ -465,6 +461,8 @@ class FDTDIResponseGenerator():
         if tc_at_constellation:
             tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
             parameter_dict['coalescence_time'] += -tc_delay / DAY # (Nevent)
+            # print("delayed tc =", tc_delay)
+            # print("converted tc =", parameter_dict["coalescence_time"])
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
         # by default all the modes will be calculated 
@@ -557,7 +555,7 @@ class FDTDIResponseGenerator():
         else:
             results = np.array([X, Y, Z])
         
-        results[np.abs(results)<1e-23]=0.
+        results[np.abs(results)<1e-25]=0.
         return results 
             
     def AETfromXYZ(self, X, Y, Z):
@@ -571,8 +569,6 @@ class FDTDIResponseGenerator():
         Y = (T - np.sqrt(2.) * E) / np.sqrt(3.)
         Z = (np.sqrt(3.) * A + E + np.sqrt(2.) * T) / np.sqrt(6.)
         return X, Y, Z
-        
-        
 
 
 
