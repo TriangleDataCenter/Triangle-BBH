@@ -124,6 +124,9 @@ class FDTDIResponseGenerator():
         self.ARM_data_int = orbit_class.ARM_data_int
         self.LTT_time_int = orbit_class.LTT_time_int
         self.LTT_data_int = orbit_class.LTT_data_int  
+        
+        self.POS0_time_int = self.POS_time_int["1"] # 1, 2, 3 are actually the same, so we use the time of 1 
+        self.POS0_data_int = (self.POS_data_int["1"] + self.POS_data_int["2"] + self.POS_data_int["3"]) / 3. # (N_orbit_time, 3)
 
         self.waveform = waveform_generator
         
@@ -412,11 +415,18 @@ class FDTDIResponseGenerator():
             returns the delay of coalescence time at constellation center w.r.t SSB 
             tc = tc^SSB + tc^delay --> tc^SSB = tc - tc^delay
         """
-        p1 = self.PositionFunctions['1'](parameters['coalescence_time'] * DAY)
-        p2 = self.PositionFunctions['2'](parameters['coalescence_time'] * DAY)
-        p3 = self.PositionFunctions['3'](parameters['coalescence_time'] * DAY)
-        p0 = (p1 + p2 + p3) / 3. 
-        return np.sum(k * p0, axis=1)
+        # p1 = self.PositionFunctions['1'](parameters['coalescence_time'] * DAY)
+        # p2 = self.PositionFunctions['2'](parameters['coalescence_time'] * DAY)
+        # p3 = self.PositionFunctions['3'](parameters['coalescence_time'] * DAY)
+        # p0 = (p1 + p2 + p3) / 3. 
+        tc_SI = parameters['coalescence_time'] * DAY
+        p0 = np.array([
+            np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 0]),
+            np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 1]),
+            np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 2]),
+        ]) # (3,)
+        # return np.sum(k * p0, axis=1)
+        return np.dot(k, p0) # float, in second unit
     
     def Response(
         self, 
