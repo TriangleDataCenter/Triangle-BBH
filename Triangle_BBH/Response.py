@@ -419,14 +419,13 @@ class FDTDIResponseGenerator():
         # p2 = self.PositionFunctions['2'](parameters['coalescence_time'] * DAY)
         # p3 = self.PositionFunctions['3'](parameters['coalescence_time'] * DAY)
         # p0 = (p1 + p2 + p3) / 3. 
-        tc_SI = parameters['coalescence_time'] * DAY
-        p0 = np.array([
+        tc_SI = parameters['coalescence_time'] * DAY # (Nevent)
+        p0 = np.transpose(np.array([
             np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 0]),
             np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 1]),
             np.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 2]),
-        ]) # (3,)
-        # return np.sum(k * p0, axis=1)
-        return np.dot(k, p0) # float, in second unit
+        ])) # (3, Nevent) -> (Nevent, 3), in second unit 
+        return np.sum(k * p0, axis=1) # (Nevent), in second unit 
     
     def Response(
         self, 
@@ -464,8 +463,8 @@ class FDTDIResponseGenerator():
         
         # convert the coalescence time from constellaton center to SSB
         if tc_at_constellation:
-            tc_delay = self.SSBToConstellationDelay(k, parameter_dict)
-            parameter_dict['coalescence_time'] += -tc_delay / DAY 
+            tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
+            parameter_dict['coalescence_time'] += -tc_delay / DAY # (Nevent)
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
         # by default all the modes will be calculated 
@@ -628,9 +627,15 @@ class BBHxFDTDIResponseGenerator():
         self.ARM_data_int = orbit_class.ARM_data_int
         self.LTT_time_int = orbit_class.LTT_time_int
         self.LTT_data_int = orbit_class.LTT_data_int   
+        
+        # convert to xp array 
         for data_dict in [self.POS_time_int, self.POS_data_int, self.ARM_time_int, self.ARM_data_int, self.LTT_time_int, self.LTT_data_int]:
             for k, v in data_dict.items():
                 data_dict[k] = self.xp.array(v)
+                
+        # calculate the sparse data of R0
+        self.POS0_time_int = self.POS_time_int["1"] # 1, 2, 3 are actually the same, so we use the time of 1 
+        self.POS0_data_int = (self.POS_data_int["1"] + self.POS_data_int["2"] + self.POS_data_int["3"]) / 3. # (N_orbit_time, 3)
 
         if use_gpu: 
             self.ep_0 = self.xp.array(self.ep_0)
@@ -986,16 +991,19 @@ class BBHxFDTDIResponseGenerator():
         
         return Gij, GTDI
     
+    
     def SSBToConstellationDelay(self, k, parameters):
         """  
-        returns the delay of coalescence time at constellation center w.r.t SSB 
-        tc = tc^SSB + tc^delay --> tc^SSB = tc - tc^delay
+            returns the delay of coalescence time at constellation center w.r.t SSB 
+            tc = tc^SSB + tc^delay --> tc^SSB = tc - tc^delay
         """
-        p1 = self.PositionFunctions['1'](parameters['coalescence_time'] * DAY)
-        p2 = self.PositionFunctions['2'](parameters['coalescence_time'] * DAY)
-        p3 = self.PositionFunctions['3'](parameters['coalescence_time'] * DAY)
-        p0 = (p1 + p2 + p3) / 3. 
-        return np.sum(k * p0, axis=1)
+        tc_SI = parameters['coalescence_time'] * DAY # (Nevent)
+        p0 = self.xp.transpose(self.xp.array([
+            self.xp.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 0]),
+            self.xp.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 1]),
+            self.xp.interp(x=tc_SI, xp=self.POS0_time_int, fp=self.POS0_data_int[:, 2]),
+        ])) # (3, Nevent) -> (Nevent, 3), in second unit 
+        return self.xp.sum(k * p0, axis=1) # (Nevent), in second unit 
     
     def Response(
         self, 
@@ -1033,10 +1041,6 @@ class BBHxFDTDIResponseGenerator():
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
         if interpolation: 
-            # freqs_tmp  = self.xp.atleast_2d(freqs) # (Nevents, Nfreqs)
-            # ln_fstart_tmp = self.xp.log(freqs_tmp[:, 0]) # (Nevents)
-            # ln_fend_tmp = self.xp.log(freqs_tmp[:, -1]) # (Nevents)
-            # freqs_sparse = self.xp.exp(self.xp.linspace(ln_fstart_tmp[:, None], ln_fend_tmp[:, None], 1024, axis=1)) # (Nevents, 1024)
             freqs_sparse = self.xp.logspace(self.xp.log10(freqs[0]) - 1e-1, self.xp.log10(freqs[-1]) + 1e-1, interpolate_points) # (1024,)
             fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs_sparse)
         else: 
@@ -1055,7 +1059,7 @@ class BBHxFDTDIResponseGenerator():
         
         # convert the coalescence time from constellaton center to SSB
         if tc_at_constellation:
-            tc_delay = self.SSBToConstellationDelay(k, parameter_dict)
+            tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
             parameter_dict['coalescence_time'] += -tc_delay / DAY 
 
         # calculate transfer function at the frequency and time grids and then interpolate (Nevents, Nfreqs) --> (Nevents, Nfreqs_out)
