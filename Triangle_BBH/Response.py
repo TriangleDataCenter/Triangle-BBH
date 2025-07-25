@@ -1014,6 +1014,7 @@ class BBHxFDTDIResponseGenerator():
         output_by_mode=False, 
         interpolation=False, 
         interpolate_points=1024, 
+        interpolation_method="Akima", 
         ):
         """   
             Calculate 1st/2nd-generation TDI response in the frequency domain.
@@ -1033,6 +1034,7 @@ class BBHxFDTDIResponseGenerator():
                 output_by_mode: whether to return the waveform summed over modes, or return modes separately 
                 interpolation: whether to calculate on orignal frequency grid or interpolate from a sparse grid 
                 interpolate_points: number of frequencies in the sparse grid 
+                interpolation_method: "Akima" or "Spline" 
         """
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
@@ -1073,25 +1075,33 @@ class BBHxFDTDIResponseGenerator():
                     Zamp_int = GTDI['Z'] * amps[mode]
                     phase_int = phas[mode]
 
-                    # Xamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Xamp_int, axis=1) 
-                    # Yamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Yamp_int, axis=1)
-                    # Zamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Zamp_int, axis=1)
-                    # phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
-                    Xamp_func = self.xinterp.make_interp_spline(x=fgrids[0], y=Xamp_int, axis=1, k=3) 
-                    Yamp_func = self.xinterp.make_interp_spline(x=fgrids[0], y=Yamp_int, axis=1, k=3)
-                    Zamp_func = self.xinterp.make_interp_spline(x=fgrids[0], y=Zamp_int, axis=1, k=3)
-                    phase_func = self.xinterp.make_interp_spline(x=fgrids[0], y=phase_int, axis=1, k=3)
+                    if interpolation_method == "Akima":
+                        Xamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Xamp_int, axis=1) 
+                        Yamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Yamp_int, axis=1)
+                        Zamp_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=Zamp_int, axis=1)
+                        phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
+                    elif interpolation_method == "Cubic":
+                        Xamp_func = self.xinterp.make_interp_spline(x=fgrids[0], y=Xamp_int, axis=1, k=3) 
+                        Yamp_func = self.xinterp.make_interp_spline(x=fgrids[0], y=Yamp_int, axis=1, k=3)
+                        Zamp_func = self.xinterp.make_interp_spline(x=fgrids[0], y=Zamp_int, axis=1, k=3)
+                        phase_func = self.xinterp.make_interp_spline(x=fgrids[0], y=phase_int, axis=1, k=3)
+                    else: 
+                        raise NotImplementedError("interpolation method not implemented.")
 
                     Xamp = Xamp_func(freqs)
                     Yamp = Yamp_func(freqs)
                     Zamp = Zamp_func(freqs)
                     phase = phase_func(freqs)
-                    # X[imode] = Xamp * self.xp.exp(1.j * phase) # for akima interpolation 
-                    # Y[imode] = Yamp * self.xp.exp(1.j * phase)
-                    # Z[imode] = Zamp * self.xp.exp(1.j * phase) 
-                    X[imode] = (Xamp * self.xp.exp(1.j * phase)).T # for spline interpolation 
-                    Y[imode] = (Yamp * self.xp.exp(1.j * phase)).T
-                    Z[imode] = (Zamp * self.xp.exp(1.j * phase)).T 
+                    if interpolation_method == "Akima":
+                        X[imode] = Xamp * self.xp.exp(1.j * phase) # for akima interpolation 
+                        Y[imode] = Yamp * self.xp.exp(1.j * phase)
+                        Z[imode] = Zamp * self.xp.exp(1.j * phase) 
+                    elif interpolation_method == "Cubic":
+                        X[imode] = (Xamp * self.xp.exp(1.j * phase)).T # for spline interpolation 
+                        Y[imode] = (Yamp * self.xp.exp(1.j * phase)).T
+                        Z[imode] = (Zamp * self.xp.exp(1.j * phase)).T 
+                    else:
+                        raise NotImplementedError("interpolation method not implemented.")
 
             else: 
                 for imode, mode in enumerate(modes):
@@ -1115,37 +1125,40 @@ class BBHxFDTDIResponseGenerator():
                     Zamp_int = GTDI['Z'] * amps[mode]
                     phase_int = phas[mode]
 
-                    # Xamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Xamp_int), axis=1) 
-                    # Yamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Yamp_int), axis=1)
-                    # Zamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Zamp_int), axis=1)
-                    # Xamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Xamp_int), axis=1)
-                    # Yamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Yamp_int), axis=1)
-                    # Zamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Zamp_int), axis=1)
-                    # phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
-                    Xamp_func_re = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.real(Xamp_int), axis=1, k=3)
-                    Yamp_func_re = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.real(Yamp_int), axis=1, k=3)
-                    Zamp_func_re = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.real(Zamp_int), axis=1, k=3)
-                    Xamp_func_im = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.imag(Xamp_int), axis=1, k=3)
-                    Yamp_func_im = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.imag(Yamp_int), axis=1, k=3)
-                    Zamp_func_im = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.imag(Zamp_int), axis=1, k=3)
-                    phase_func = self.xinterp.make_interp_spline(x=fgrids[0], y=phase_int, axis=1, k=3)
+                    if interpolation_method == "Akima":
+                        Xamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Xamp_int), axis=1) 
+                        Yamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Yamp_int), axis=1)
+                        Zamp_func_re = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.real(Zamp_int), axis=1)
+                        Xamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Xamp_int), axis=1)
+                        Yamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Yamp_int), axis=1)
+                        Zamp_func_im = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=self.xp.imag(Zamp_int), axis=1)
+                        phase_func = self.xinterp.Akima1DInterpolator(x=fgrids[0], y=phase_int, axis=1)
+                    elif interpolation_method == "Cubic":
+                        Xamp_func_re = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.real(Xamp_int), axis=1, k=3)
+                        Yamp_func_re = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.real(Yamp_int), axis=1, k=3)
+                        Zamp_func_re = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.real(Zamp_int), axis=1, k=3)
+                        Xamp_func_im = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.imag(Xamp_int), axis=1, k=3)
+                        Yamp_func_im = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.imag(Yamp_int), axis=1, k=3)
+                        Zamp_func_im = self.xinterp.make_interp_spline(x=fgrids[0], y=self.xp.imag(Zamp_int), axis=1, k=3)
+                        phase_func = self.xinterp.make_interp_spline(x=fgrids[0], y=phase_int, axis=1, k=3)
+                    else:
+                        raise NotImplementedError("interpolation method not implemented.")
 
                     Xamp = Xamp_func_re(freqs) + Xamp_func_im(freqs) * 1.j 
                     Yamp = Yamp_func_re(freqs) + Yamp_func_im(freqs) * 1.j 
                     Zamp = Zamp_func_re(freqs) + Zamp_func_im(freqs) * 1.j 
                     phase = phase_func(freqs)
-                    
-                    # print("amplitude and phase interp data shape:") # TEST 
-                    # print(Xamp_int.shape, phase_int.shape)
-                    # print("amplitude and phase shapes:")
-                    # print(Xamp.shape, phase.shape)
 
-                    # X += Xamp * self.xp.exp(1.j * phase) # for akima interpolation 
-                    # Y += Yamp * self.xp.exp(1.j * phase)
-                    # Z += Zamp * self.xp.exp(1.j * phase)
-                    X += (Xamp * self.xp.exp(1.j * phase)).T # for spline interpolation 
-                    Y += (Yamp * self.xp.exp(1.j * phase)).T
-                    Z += (Zamp * self.xp.exp(1.j * phase)).T
+                    if interpolation_method == "Akima":
+                        X += Xamp * self.xp.exp(1.j * phase) # for akima interpolation 
+                        Y += Yamp * self.xp.exp(1.j * phase)
+                        Z += Zamp * self.xp.exp(1.j * phase)
+                    elif interpolation_method == "Cubic":
+                        X += (Xamp * self.xp.exp(1.j * phase)).T # for spline interpolation 
+                        Y += (Yamp * self.xp.exp(1.j * phase)).T
+                        Z += (Zamp * self.xp.exp(1.j * phase)).T
+                    else:
+                        raise NotImplementedError("interpolation method not implemented.")
             else: 
                 for mode in modes:
                     _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
