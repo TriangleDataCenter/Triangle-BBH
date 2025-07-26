@@ -737,9 +737,15 @@ class Fstatistics(Likelihood):
 
         # else:
         if self.use_gpu:
-            return res.get() # (Nevent)
+            if Nevent == 1:
+                return res.get()[0]
+            else:
+                return res.get() # (Nevent)
         else: 
-            return res 
+            if Nevent == 1: 
+                return res[0]
+            else: 
+                return res 
 
     @staticmethod
     def a_to_extrinsic(a):
