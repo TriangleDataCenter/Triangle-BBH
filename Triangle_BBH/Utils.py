@@ -855,3 +855,42 @@ class Fstatistics(Likelihood):
         p['longitude'] = params[5]
         p['latitude'] = np.arcsin(params[6])
         return p 
+    
+
+def DetectorBasisInSSB(orbit_time_SI, orbit):
+    n21 = orbit.ArmVectorfunctions()["21"](orbit_time_SI)
+    n31 = orbit.ArmVectorfunctions()["31"](orbit_time_SI)
+    z_det = np.cross(n31, n21)
+    z_norm = np.linalg.norm(z_det)
+    z_det = z_det / z_norm
+    x_det = n31 
+    y_det = np.cross(z_det, x_det)
+    y_norm = np.linalg.norm(y_det)
+    y_det = y_det / y_norm
+    return x_det, y_det, z_det 
+
+def DetectorSSBRotationMatrices(orbit_time_SI, orbit):
+    x_det, y_det, z_det = DetectorBasisInSSB(orbit_time_SI, orbit)
+    R_det2ssb = np.array([x_det, y_det, z_det])
+    R_ssb2det = R_det2ssb.T 
+    return R_det2ssb, R_ssb2det 
+
+def SSBPosToDetectorFrame(lon_ssb, lat_ssb, orbit_time_SI, orbit):
+    R_det2ssb, R_ssb2det = DetectorSSBRotationMatrices(orbit_time_SI, orbit)
+    x_in_ssb = np.cos(lat_ssb) * np.cos(lon_ssb)
+    y_in_ssb = np.cos(lat_ssb) * np.sin(lon_ssb)
+    z_in_ssb = np.sin(lat_ssb)
+    x_in_det, y_in_det, z_in_det = np.matmul(R_ssb2det, np.array([x_in_ssb, y_in_ssb, z_in_ssb]))
+    lon_det = np.arctan2(y_in_det, x_in_det)
+    lat_det = np.arcsin(z_in_det)
+    return lon_det, lat_det
+
+def DetectorPosToSSBFrame(lon_det, lat_det, orbit_time_SI, orbit):
+    R_det2ssb, R_ssb2det = DetectorSSBRotationMatrices(orbit_time_SI, orbit)
+    x_in_det = np.cos(lat_det) * np.cos(lon_det)
+    y_in_det = np.cos(lat_det) * np.sin(lon_det)
+    z_in_det = np.sin(lat_det)
+    x_in_ssb, y_in_ssb, z_in_ssb = np.matmul(R_det2ssb, np.array([x_in_det, y_in_det, z_in_det]))
+    lon_ssb = np.arctan2(y_in_ssb, x_in_ssb) % TWOPI
+    lat_ssb = np.arcsin(z_in_ssb)
+    return lon_ssb, lat_ssb
