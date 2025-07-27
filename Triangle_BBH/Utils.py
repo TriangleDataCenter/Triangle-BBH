@@ -880,7 +880,7 @@ def SSBPosToDetectorFrame(lon_ssb, lat_ssb, orbit_time_SI, orbit):
     x_in_ssb = np.cos(lat_ssb) * np.cos(lon_ssb)
     y_in_ssb = np.cos(lat_ssb) * np.sin(lon_ssb)
     z_in_ssb = np.sin(lat_ssb)
-    x_in_det, y_in_det, z_in_det = np.matmul(R_ssb2det, np.array([x_in_ssb, y_in_ssb, z_in_ssb]))
+    x_in_det, y_in_det, z_in_det = np.matmul(R_det2ssb, np.array([x_in_ssb, y_in_ssb, z_in_ssb]))
     lon_det = np.arctan2(y_in_det, x_in_det)
     lat_det = np.arcsin(z_in_det)
     return lon_det, lat_det
@@ -890,7 +890,7 @@ def DetectorPosToSSBFrame(lon_det, lat_det, orbit_time_SI, orbit):
     x_in_det = np.cos(lat_det) * np.cos(lon_det)
     y_in_det = np.cos(lat_det) * np.sin(lon_det)
     z_in_det = np.sin(lat_det)
-    x_in_ssb, y_in_ssb, z_in_ssb = np.matmul(R_det2ssb, np.array([x_in_det, y_in_det, z_in_det]))
+    x_in_ssb, y_in_ssb, z_in_ssb = np.matmul(R_ssb2det, np.array([x_in_det, y_in_det, z_in_det]))
     lon_ssb = np.arctan2(y_in_ssb, x_in_ssb) % TWOPI
     lat_ssb = np.arcsin(z_in_ssb)
     return lon_ssb, lat_ssb
