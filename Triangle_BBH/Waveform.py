@@ -207,7 +207,8 @@ class BBHxWaveformGenerator():
         m2 = m1 * parameters["mass_ratio"]
         a1 = parameters["spin_1z"]
         a2 = parameters["spin_2z"]
-        t_ref = parameters['coalescence_time'] * DAY 
+        t_ref = parameters['coalescence_time'] * DAY # default tc 
+        # t_ref = np.zeros(Nevents) # alternative tc 
         phi_ref = np.zeros(Nevents) # phi_c is set to 0
         dist = parameters["luminosity_distance"] * MPC 
         
@@ -228,8 +229,11 @@ class BBHxWaveformGenerator():
 
         fgrids = self.waveform.freqs_shaped  # shape (Nevents, Nfreqs)
         amps = self.waveform.amp  # shape (Nevents, Nmodes, Nfreqs)
-        phase = self.waveform.phase  # shape (Nevents, Nmodes, Nfreqs)
+        phase = self.waveform.phase  # shape (Nevents, Nmodes, Nfreqs) 
         tf = self.waveform.tf  # shape (Nevents, Nmodes, Nfreqs)
+        # tc = self.xp.atleast_1d(parameters["coalescence_time"])[:, self.xp.newaxis, self.xp.newaxis] * DAY # (Nevent) -> (Nevent, 1, 1) alternative tc 
+        # phase += TWOPI * fgrids[:, self.xp.newaxis, :] * tc # alternative tc 
+        # tf += tc # alternative tc
      
         # save waveforms as dicts 
         amps_out = {}
