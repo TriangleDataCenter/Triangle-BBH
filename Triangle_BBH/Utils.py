@@ -632,17 +632,14 @@ class Fstatistics(Likelihood):
         
         if return_a:
             res_a = NM
-            if self.use_gpu:
-                return res_a # (4,)
-            else: 
-                return res_a # (4,)
+            return res_a # (4,)
             
         if return_recovered_wave: 
             res_a = NM # (4,)
             res_wf = res_a[0] * X1 + res_a[1] * X2 + res_a[2] * X3 + res_a[3] * X4 # (Nchannel, Nfreq)
             return res_wf # (Nchannel, Nfreq)
 
-        return float(res)
+        return float(res) # float 
 
     def calculate_Fstat_vectorized(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
         """  
@@ -713,7 +710,6 @@ class Fstatistics(Likelihood):
         # print("shape of M matrix:", Mmatrix.shape) # TEST 
         
         invMmatrix = self.xp.linalg.inv(Mmatrix) # (Nevent, 4, 4)
-        
         Nvector_col = Nvector[..., self.NX] # (Nevent, 4, 1)
         NM = self.MATMUL(invMmatrix, Nvector_col) # (Nevent, 4, 1)
         Nvector_row = Nvector[:, self.NX, :] # (Nevent, 1, 4)
@@ -724,7 +720,7 @@ class Fstatistics(Likelihood):
         if return_a:
             res_a = NM.squeeze(axis=-1) # (Nevent, 4)
             if self.use_gpu:
-                return res_a # (Nevent, 4)
+                return res_a.get() # (Nevent, 4)
             else: 
                 return res_a # (Nevent, 4)
             
@@ -734,7 +730,10 @@ class Fstatistics(Likelihood):
             res_wf += res_a[:, 1] * self.TRANS(X2, axes=(1, 2, 0))
             res_wf += res_a[:, 2] * self.TRANS(X3, axes=(1, 2, 0))
             res_wf += res_a[:, 3] * self.TRANS(X4, axes=(1, 2, 0)) 
-            return self.TRANS(res_wf, (0, 2, 1)) # (Nchannel, Nevent, Nfreq)
+            if Nevent == 1: 
+                return res_wf[:, :, 0] # (Nchannel, Nfreq)
+            else:
+                return self.TRANS(res_wf, (0, 2, 1)) # (Nchannel, Nevent, Nfreq)
 
         # else:
         if self.use_gpu:
@@ -775,20 +774,14 @@ class Fstatistics(Likelihood):
         Q = np.sqrt((a[0] - a[3])**2 + (a[1] + a[2])**2) # float 
         Aplus = P + Q # float 
         Across = P - Q # float 
-        A = Aplus + np.sqrt(Aplus**2 + Across**2) # float 
-        extrinsic_parameters["psi"] = 0.5 * np.arctan((Aplus*a[3] - Across*a[0]) / (Aplus*a[1] + Across*a[2])) # float 
-        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan((Aplus*a[3] - Across*a[0]) / (Aplus*a[2] + Across*a[1])) # float 
+        extrinsic_parameters["psi"] = 0.5 * np.arctan2(Aplus*a[3] - Across*a[0], Aplus*a[1] + Across*a[2]) # float (-PI/2, PI/2)
+        sgns2p = np.sign(np.sin(2. * extrinsic_parameters["psi"]))
+        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan2((Aplus*a[3] - Across*a[0])*sgns2p, (Aplus*a[2] + Across*a[1])*sgns2p) # float (-PI/2, PI/2)
         if extrinsic_parameters["psi"] < 0: 
-            extrinsic_parameters["psi"] += PI 
+            extrinsic_parameters["psi"] += PI # (0, PI)
         if extrinsic_parameters["coalescence_phase"] < 0.: 
-            extrinsic_parameters["coalescence_phase"] += 2.*PI
-        
-        # if a.shape[0] == 1:
-        #     extrinsic_parameters_out = dict() 
-        #     for k, v in extrinsic_parameters.items():
-        #         extrinsic_parameters_out[k] = v[0]
-        #     return extrinsic_parameters_out
-        # else:              
+            extrinsic_parameters["coalescence_phase"] += PI # (0, PI)
+           
         return extrinsic_parameters
         
     @staticmethod
@@ -818,12 +811,11 @@ class Fstatistics(Likelihood):
         Q = np.sqrt((a[:, 0] - a[:, 3])**2 + (a[:, 1] + a[:, 2])**2)
         Aplus = P + Q 
         Across = P - Q 
-        A = Aplus + np.sqrt(Aplus**2 + Across**2)
-        extrinsic_parameters["psi"] = 0.5 * np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 1] + Across*a[:, 2]))
-        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan((Aplus*a[:, 3] - Across*a[:, 0]) / (Aplus*a[:, 2] + Across*a[:, 1])) 
+        extrinsic_parameters["psi"] = 0.5 * np.arctan2(Aplus*a[:, 3] - Across*a[:, 0], Aplus*a[:, 1] + Across*a[:, 2]) # (Nevent)
+        sgns2p = np.sign(np.sin(2. * extrinsic_parameters["psi"])) # (Nevent)
+        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan2((Aplus*a[:, 3] - Across*a[:, 0]) * sgns2p / (Aplus*a[:, 2] + Across*a[:, 1]) * sgns2p) # (Nevent)
         extrinsic_parameters["psi"][extrinsic_parameters["psi"]<0.] += PI 
-        extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += 2.*PI 
-        # extrinsic_parameters["inclination"] = np.arccos(-Across/A)
+        extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += PI 
         
         if a.shape[0] == 1:
             extrinsic_parameters_out = dict() 
@@ -872,26 +864,70 @@ def DetectorBasisInSSB(orbit_time_SI, orbit):
 
 def DetectorSSBRotationMatrices(orbit_time_SI, orbit):
     x_det, y_det, z_det = DetectorBasisInSSB(orbit_time_SI, orbit)
-    R_det2ssb = np.array([x_det, y_det, z_det])
-    R_ssb2det = R_det2ssb.T 
-    return R_det2ssb, R_ssb2det 
+    R_Ssb2Det = np.array([x_det, y_det, z_det])
+    R_Det2Ssb = R_Ssb2Det.T 
+    return R_Ssb2Det, R_Det2Ssb 
 
-def SSBPosToDetectorFrame(lon_ssb, lat_ssb, orbit_time_SI, orbit):
-    R_det2ssb, R_ssb2det = DetectorSSBRotationMatrices(orbit_time_SI, orbit)
+def SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, orbit_time_SI, orbit):
+    R_Ssb2Det, _ = DetectorSSBRotationMatrices(orbit_time_SI, orbit)
     x_in_ssb = np.cos(lat_ssb) * np.cos(lon_ssb)
     y_in_ssb = np.cos(lat_ssb) * np.sin(lon_ssb)
     z_in_ssb = np.sin(lat_ssb)
-    x_in_det, y_in_det, z_in_det = np.matmul(R_det2ssb, np.array([x_in_ssb, y_in_ssb, z_in_ssb]))
+    x_in_det, y_in_det, z_in_det = np.matmul(R_Ssb2Det, np.array([x_in_ssb, y_in_ssb, z_in_ssb]))
     lon_det = np.arctan2(y_in_det, x_in_det)
     lat_det = np.arcsin(z_in_det)
-    return lon_det, lat_det
+    
+    n12_ssb = orbit.ArmVectorfunctions()["12"](orbit_time_SI)
+    u_ssb = np.array([np.sin(lon_ssb), -np.cos(lon_ssb), 0.])
+    v_ssb = np.array([-np.sin(lat_ssb)*np.cos(lon_ssb), -np.sin(lat_ssb)*np.sin(lon_ssb), np.cos(lat_ssb)])
+    n12u = np.dot(n12_ssb, u_ssb) 
+    n12v = np.dot(n12_ssb, v_ssb)
+    xi_plus_12_ssb = n12u ** 2 - n12v ** 2 
+    xi_cross_12_ssb = 2. * n12u * n12v
+    xi_12_ssb = xi_plus_12_ssb + 1.j * xi_cross_12_ssb
+    
+    xi_plus_12_det = 0.5 * np.cos(lat_det) ** 2 + 0.5 * np.cos(2. * lon_det + PI / 3.) * (1. + np.sin(lat_det) ** 2)
+    xi_cross_12_det = np.sin(2. * lon_det + PI / 3.) * np.sin(lat_det)
+    xi_12_det = xi_plus_12_det + 1.j * xi_cross_12_det
+    
+    zeta_12 = xi_12_ssb * np.exp(-2.j * psi_ssb)
+    # psi_det = np.arccos(np.real(zeta_12 / xi_12_det)) / 2. # cos(2psi) -> psi in [0, PI]
+    c2p = np.real(zeta_12 / xi_12_det)
+    s2p = -np.imag(zeta_12 / xi_12_det)
+    psi_det = np.arctan2(s2p, c2p) / 2. # (-PI, PI) -> (-PI/2, PI/2)
+    if psi_det < 0:
+        psi_det += PI 
+        
+    return lon_det, lat_det, psi_det
 
-def DetectorPosToSSBFrame(lon_det, lat_det, orbit_time_SI, orbit):
-    R_det2ssb, R_ssb2det = DetectorSSBRotationMatrices(orbit_time_SI, orbit)
+def DetectorPosToSSBFrame(lon_det, lat_det, psi_det, orbit_time_SI, orbit):
+    _, R_Det2Ssb = DetectorSSBRotationMatrices(orbit_time_SI, orbit)
     x_in_det = np.cos(lat_det) * np.cos(lon_det)
     y_in_det = np.cos(lat_det) * np.sin(lon_det)
     z_in_det = np.sin(lat_det)
-    x_in_ssb, y_in_ssb, z_in_ssb = np.matmul(R_ssb2det, np.array([x_in_det, y_in_det, z_in_det]))
+    x_in_ssb, y_in_ssb, z_in_ssb = np.matmul(R_Det2Ssb, np.array([x_in_det, y_in_det, z_in_det]))
     lon_ssb = np.arctan2(y_in_ssb, x_in_ssb) % TWOPI
     lat_ssb = np.arcsin(z_in_ssb)
-    return lon_ssb, lat_ssb
+    
+    n12_ssb = orbit.ArmVectorfunctions()["12"](orbit_time_SI)
+    u_ssb = np.array([np.sin(lon_ssb), -np.cos(lon_ssb), 0.])
+    v_ssb = np.array([-np.sin(lat_ssb)*np.cos(lon_ssb), -np.sin(lat_ssb)*np.sin(lon_ssb), np.cos(lat_ssb)])
+    n12u = np.dot(n12_ssb, u_ssb) 
+    n12v = np.dot(n12_ssb, v_ssb)
+    xi_plus_12_ssb = n12u ** 2 - n12v ** 2 
+    xi_cross_12_ssb = 2. * n12u * n12v
+    xi_12_ssb = xi_plus_12_ssb + 1.j * xi_cross_12_ssb
+    
+    xi_plus_12_det = 0.5 * np.cos(lat_det) ** 2 + 0.5 * np.cos(2. * lon_det + PI / 3.) * (1. + np.sin(lat_det) ** 2)
+    xi_cross_12_det = np.sin(2. * lon_det + PI / 3.) * np.sin(lat_det)
+    xi_12_det = xi_plus_12_det + 1.j * xi_cross_12_det
+    
+    zeta_12 = xi_12_det * np.exp(-2.j * psi_det)
+    # psi_ssb = np.arccos(np.real(zeta_12 / xi_12_ssb)) / 2. # cos(2psi) -> psi in [0, PI]
+    c2p = np.real(zeta_12 / xi_12_ssb)
+    s2p = -np.imag(zeta_12 / xi_12_ssb)
+    psi_ssb = np.arctan2(s2p, c2p) / 2. # (-PI, PI) -> (-PI/2, PI/2)
+    if psi_ssb < 0:
+        psi_ssb += PI 
+        
+    return lon_ssb, lat_ssb, psi_ssb
