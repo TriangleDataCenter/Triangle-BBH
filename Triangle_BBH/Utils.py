@@ -813,7 +813,7 @@ class Fstatistics(Likelihood):
         Across = P - Q 
         extrinsic_parameters["psi"] = 0.5 * np.arctan2(Aplus*a[:, 3] - Across*a[:, 0], Aplus*a[:, 1] + Across*a[:, 2]) # (Nevent)
         sgns2p = np.sign(np.sin(2. * extrinsic_parameters["psi"])) # (Nevent)
-        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan2((Aplus*a[:, 3] - Across*a[:, 0]) * sgns2p / (Aplus*a[:, 2] + Across*a[:, 1]) * sgns2p) # (Nevent)
+        extrinsic_parameters["coalescence_phase"] = -0.5*np.arctan2((Aplus*a[:, 3] - Across*a[:, 0]) * sgns2p, (Aplus*a[:, 2] + Across*a[:, 1]) * sgns2p) # (Nevent)
         extrinsic_parameters["psi"][extrinsic_parameters["psi"]<0.] += PI 
         extrinsic_parameters["coalescence_phase"][extrinsic_parameters["coalescence_phase"]<0.] += PI 
         
@@ -931,3 +931,23 @@ def DetectorPosToSSBFrame(lon_det, lat_det, psi_det, orbit_time_SI, orbit):
         psi_ssb += PI 
         
     return lon_ssb, lat_ssb, psi_ssb
+
+def get_reflected_parameter_dict(searched_params, orbit):
+    lon_ssb = searched_params["longitude"]
+    lat_ssb = searched_params["latitude"]
+    psi_ssb = searched_params["psi"]
+    lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, searched_params["coalescence_time"]*DAY, orbit)
+    lat_det = -lat_det # reflect latitutde 
+    psi_det = PI - psi_det # reflect psi 
+    searched_ref_params = copy.deepcopy(searched_params)
+    searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["coalescence_time"]*DAY, orbit)
+    searched_ref_params["inclination"] = PI - searched_params["inclination"] # reflect inclination 
+    return searched_ref_params
+
+def get_reflected_parameters(original_lon, original_lat, original_psi, original_inc, orbit_time_SI, orbit):
+    lon_det, lat_det, psi_det = SSBPosToDetectorFrame(original_lon, original_lat, original_psi, orbit_time_SI, orbit)
+    lat_det = -lat_det # reflect latitutde 
+    psi_det = PI - psi_det # reflect psi 
+    reflected_lon, reflected_lat, reflected_psi = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, orbit_time_SI, orbit)
+    reflected_inc = PI - original_inc
+    return reflected_lon, reflected_lat, reflected_psi, reflected_inc
