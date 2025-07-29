@@ -1036,14 +1036,6 @@ class BBHxFDTDIResponseGenerator():
                 interpolate_points: number of frequencies in the sparse grid 
                 interpolation_method: "Akima" or "Spline" 
         """
-        
-        # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
-        if interpolation: 
-            freqs_sparse = self.xp.logspace(self.xp.log10(freqs[0]) - 1e-1, self.xp.log10(freqs[-1]) + 1e-1, interpolate_points) # (1024,)
-            fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs_sparse)
-        else: 
-            fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs)
-        
         # convert scalar parameters to arraies 
         parameter_dict = parameters.copy()
         for k, v in parameters.items():
@@ -1054,11 +1046,20 @@ class BBHxFDTDIResponseGenerator():
         # calculate polarization tensors (mode-dependent) and wavevectors (mode-independent)
         Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes) 
         k = self.WaveVector(parameters=parameter_dict) 
-        
+
         # convert the coalescence time from constellaton center to SSB
         if tc_at_constellation:
             tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
             parameter_dict['coalescence_time'] += -tc_delay / DAY 
+        
+        # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
+        if interpolation: 
+            freqs_sparse = self.xp.logspace(self.xp.log10(freqs[0]) - 1e-1, self.xp.log10(freqs[-1]) + 1e-1, interpolate_points) # (1024,)
+            # fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs_sparse)
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, freqs=freqs_sparse)
+        else: 
+            # fgrids, amps, phas, tgrids = self.waveform(parameters=parameters, freqs=freqs)
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, freqs=freqs)
 
         # calculate transfer function at the frequency and time grids and then interpolate (Nevents, Nfreqs) --> (Nevents, Nfreqs_out)
         Nfreqs_out = freqs.shape[-1]
