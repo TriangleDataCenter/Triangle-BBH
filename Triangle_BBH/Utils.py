@@ -300,7 +300,7 @@ class Likelihood:
         LL2 = self.xp.sum(self.xp.matmul(self.A0, het_r0[:, :, self.xp.newaxis]))
         LL2 += self.xp.sum(self.xp.matmul(self.A1, het_r1[:, :, self.xp.newaxis]))
 
-        self.output = [LL1, self.xp.real(LL2)]
+        # self.output = [LL1, self.xp.real(LL2)]
         
         res = self.xp.nan_to_num(self.xp.real(-0.5 * LL1 + LL2), nan=-self.xp.infty)
         if self.use_gpu: 
@@ -342,7 +342,7 @@ class Likelihood:
         LL2 = self.xp.sum(self.xp.matmul(self.A0[self.xp.newaxis, :, :, :], het_r0[:, :, :, self.xp.newaxis]), axis=(1, 2, 3)) # (Nevents)
         LL2 += self.xp.sum(self.xp.matmul(self.A1[self.xp.newaxis, :, :, :], het_r1[:, :, :, self.xp.newaxis]), axis=(1, 2, 3)) # (Nevents)
 
-        self.output_vec = [LL1, self.xp.real(LL2)]
+        # self.output_vec = [LL1, self.xp.real(LL2)]
         
         res = self.xp.nan_to_num(self.xp.real(-0.5 * LL1 + LL2), nan=-self.xp.infty)
         if self.use_gpu: 
