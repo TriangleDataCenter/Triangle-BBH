@@ -198,9 +198,6 @@ class Likelihood:
                 **self.response_kwargs,
             ) # (3, Nf)
         else: 
-            # self.h0 = base_waveform.copy() 
-            # if self.h0.shape != self.data.shape:
-            #     raise ValueError("shapes of waveforms mismatch.")
             raise NotImplementedError("heterodyned likelihood with base waveform not implemented yet.")
         
         # create sparce grid of frequencies (1st try)
@@ -215,39 +212,6 @@ class Likelihood:
                 **self.response_kwargs,
             ) # (3, N_het_f)
         else: 
-            # interp_f = self.frequency.copy() # (Nf)
-            # interp_amplitude1 = self.xp.abs(self.h0[0]) # (Nf)
-            # interp_phase1 = self.xp.unwrap(self.xp.angle(self.h0[0])) # (Nf)
-            # interp_amplitude2 = self.xp.abs(self.h0[1]) # (Nf)
-            # interp_phase2 = self.xp.unwrap(self.xp.angle(self.h0[1])) # (Nf)
-            # interp_amplitude3 = self.xp.abs(self.h0[2]) # (Nf)
-            # interp_phase3 = self.xp.unwrap(self.xp.angle(self.h0[2])) # (Nf)
-            # if self.use_gpu: 
-            #     interp_f = interp_f.get() 
-            #     interp_amplitude1 = interp_amplitude1.get() 
-            #     interp_phase1 = interp_phase1.get() 
-            #     interp_amplitude2 = interp_amplitude2.get() 
-            #     interp_phase2 = interp_phase2.get() 
-            #     interp_amplitude3 = interp_amplitude3.get() 
-            #     interp_phase3 = interp_phase3.get()       
-            # interp_amplitude_func1 = interp1d(interp_f, interp_amplitude1, kind="cubic", bounds_error=False, fill_value=0.)
-            # interp_phase_func1 = interp1d(interp_f, interp_phase1, kind="cubic", bounds_error=False, fill_value=0.)
-            # interp_amplitude_func2 = interp1d(interp_f, interp_amplitude2, kind="cubic", bounds_error=False, fill_value=0.)
-            # interp_phase_func2 = interp1d(interp_f, interp_phase2, kind="cubic", bounds_error=False, fill_value=0.)
-            # interp_amplitude_func3 = interp1d(interp_f, interp_amplitude3, kind="cubic", bounds_error=False, fill_value=0.)
-            # interp_phase_func3 = interp1d(interp_f, interp_phase3, kind="cubic", bounds_error=False, fill_value=0.)
-            # if self.use_gpu:
-            #     self.het_h0 = self.xp.array([
-            #         interp_amplitude_func1(self.het_frequency.get()) * np.exp(1.j * interp_phase_func1(self.het_frequency.get())), 
-            #         interp_amplitude_func2(self.het_frequency.get()) * np.exp(1.j * interp_phase_func2(self.het_frequency.get())), 
-            #         interp_amplitude_func3(self.het_frequency.get()) * np.exp(1.j * interp_phase_func3(self.het_frequency.get())), 
-            #     ]) # (3, N_het_f)
-            # else: 
-            #     self.het_h0 = self.xp.array([
-            #         interp_amplitude_func1(self.het_frequency) * self.xp.exp(1.j * interp_phase_func1(self.het_frequency)), 
-            #         interp_amplitude_func2(self.het_frequency) * self.xp.exp(1.j * interp_phase_func2(self.het_frequency)), 
-            #         interp_amplitude_func3(self.het_frequency) * self.xp.exp(1.j * interp_phase_func3(self.het_frequency)), 
-            #     ]) # (3, N_het_f)
             raise NotImplementedError("heterodyned likelihood with base waveform not implemented yet.")
         
         # refine the sparse grid to ensure no zero waveforms 
@@ -266,18 +230,6 @@ class Likelihood:
                 **self.response_kwargs,
             ) # (3, N_het_f)
         else: 
-            # if self.use_gpu:
-            #     self.het_h0 = self.xp.array([
-            #         interp_amplitude_func1(self.het_frequency.get()) * np.exp(1.j * interp_phase_func1(self.het_frequency.get())), 
-            #         interp_amplitude_func2(self.het_frequency.get()) * np.exp(1.j * interp_phase_func2(self.het_frequency.get())), 
-            #         interp_amplitude_func3(self.het_frequency.get()) * np.exp(1.j * interp_phase_func3(self.het_frequency.get())), 
-            #     ]) # (3, N_het_f)
-            # else: 
-            #     self.het_h0 = self.xp.array([
-            #         interp_amplitude_func1(self.het_frequency) * self.xp.exp(1.j * interp_phase_func1(self.het_frequency)), 
-            #         interp_amplitude_func2(self.het_frequency) * self.xp.exp(1.j * interp_phase_func2(self.het_frequency)), 
-            #         interp_amplitude_func3(self.het_frequency) * self.xp.exp(1.j * interp_phase_func3(self.het_frequency)), 
-            #     ]) # (3, N_het_f)
             raise NotImplementedError("heterodyned likelihood with base waveform not implemented yet.")
         
         self.het_h0[self.het_h0==0.] = 1e-25 
@@ -350,16 +302,6 @@ class Likelihood:
         LL2 = self.xp.sum(self.xp.matmul(self.A0, het_r0[:, :, self.xp.newaxis]))
         LL2 += self.xp.sum(self.xp.matmul(self.A1, het_r1[:, :, self.xp.newaxis]))
 
-        # # test only 
-        # self.LL1 = LL1 
-        # self.LL2 = LL2 
-        # self.het_h = het_h
-        # self.het_r = het_r
-        # self.het_r0 = het_r0
-        # self.het_r1 = het_r1
-        
-        # test only 
-        # LL1 = 0.  
         self.output = [LL1, self.xp.real(LL2)]
         
         res = self.xp.nan_to_num(self.xp.real(-0.5 * LL1 + LL2), nan=-self.xp.infty)
@@ -386,14 +328,12 @@ class Likelihood:
             freqs=self.het_frequency,
             **self.response_kwargs,
         ), (1, 0, 2)) # (Nevents, 3, N_het_f)
-        # print("shape of het_h", het_h.shape)
         
         # calculate heterodyne 
         het_r = self.xp.transpose(het_h / self.het_h0, (0, 2, 1)) # (Nevents, N_het_f, 3)
         het_r = self.xp.nan_to_num(het_r, 0.) # deal with the nan caused by divide 0 
         het_r0 = het_r[:, :-1, :] # (Nevents, Nb, 3)
         het_r1 = (het_r[:, 1:, :] - het_r0) / self.het_df[:, self.xp.newaxis] # (Nevents, Nb, 3)
-        # print("shape of r, r0, r1", het_r.shape, het_r0.shape, het_r1.shape)
         
         # calculate likelihood 
         # 1) h_h term 
@@ -403,10 +343,7 @@ class Likelihood:
         # 2_ d_h term 
         LL2 = self.xp.sum(self.xp.matmul(self.A0[self.xp.newaxis, :, :, :], het_r0[:, :, :, self.xp.newaxis]), axis=(1, 2, 3)) # (Nevents)
         LL2 += self.xp.sum(self.xp.matmul(self.A1[self.xp.newaxis, :, :, :], het_r1[:, :, :, self.xp.newaxis]), axis=(1, 2, 3)) # (Nevents)
-        # print("shape of tmpmat", tmp_mat.shape)
 
-        # test 
-        # LL1 = 0. # test 
         self.output_vec = [LL1, self.xp.real(LL2)]
         
         res = self.xp.nan_to_num(self.xp.real(-0.5 * LL1 + LL2), nan=-self.xp.infty)
