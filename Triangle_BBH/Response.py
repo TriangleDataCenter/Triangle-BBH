@@ -1171,9 +1171,14 @@ class BBHxFDTDIResponseGenerator():
                     Y += Yamp_int * self.xp.exp(1.j * phase_int)
                     Z += Zamp_int * self.xp.exp(1.j * phase_int)
         if Nevents == 1:
-            X = self.xp.conjugate(X[0])
-            Y = self.xp.conjugate(Y[0])
-            Z = self.xp.conjugate(Z[0])
+            if output_by_mode: 
+                X = self.xp.conjugate(X[:, 0]) # (Nmode, Nf)
+                Y = self.xp.conjugate(Y[:, 0])
+                Z = self.xp.conjugate(Z[:, 0])
+            else:
+                X = self.xp.conjugate(X[0]) # (Nf)
+                Y = self.xp.conjugate(Y[0])
+                Z = self.xp.conjugate(Z[0])
         else:
             X = self.xp.conjugate(X)
             Y = self.xp.conjugate(Y)
