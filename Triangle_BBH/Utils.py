@@ -136,8 +136,6 @@ class Likelihood:
             print("min and max frequencies:", self.xp.min(frequency), self.xp.max(frequency))
             print("response kwargs:", self.response_kwargs)
         
-        self.parameter_names = ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
-        self.channel_names = ["X2", "Y2", "Z2"]
         self.het_prepare_flag = False 
         
     def full_log_like(self, parameter_array): 
