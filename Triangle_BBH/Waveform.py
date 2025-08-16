@@ -145,7 +145,7 @@ class WaveformGenerator():
 
 
 class BBHxWaveformGenerator():
-    def __init__(self, mode='full', use_gpu=False):
+    def __init__(self, mode='full', use_gpu=False, modes=[(2,2)]):
         """ 
             vectorized wrapper of the BBHx PhenomHM waveform 
             using the Fourier transformation convention of S. Marsat
@@ -155,6 +155,7 @@ class BBHxWaveformGenerator():
             
             mode = 'full': HM waveform
             mode = 'primary': D waveform
+            mode = 'specific': mode will be specified by modes
         """
         if mode == 'full':
             self.modes = [(2,2), (2,1), (3,3), (3,2), (4,4), (4,3)]
@@ -162,8 +163,11 @@ class BBHxWaveformGenerator():
         elif mode == 'primary':
             self.modes = [(2,2)]
             self.waveform = PhenomHMAmpPhase(use_gpu=use_gpu, run_phenomd=True)
+        elif mode == 'specific': 
+            self.modes = modes 
+            self.waveform = PhenomHMAmpPhase(use_gpu=use_gpu, run_phenomd=False)
         else:
-            raise ValueError('mode can only be full or primary.')
+            raise ValueError('mode can only be full or primary or specific.')
         
         self.use_gpu = use_gpu
         if use_gpu:
