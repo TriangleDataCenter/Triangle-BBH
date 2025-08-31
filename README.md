@@ -7,10 +7,10 @@ Besides, Example 0 - 2 might be useful for the researchers who are interested in
 
 # Installation 
 
-Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that installation will success on all the unix systems, even the aforementioned two.
+Tested platforms: Ubuntu22.04 (recommanded), MacOS15 (only WF4Py CPU waveform). While we donot ensure that installation will success on all the unix systems, even the aforementioned two.
 
 1. **Install Triangle-Simulator**    
-   install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) and activate the tri_env environment by
+   Install [Triangle-Simulator](https://github.com/TriangleDataCenter/Triangle-Simulator) and activate the tri_env environment by
    ```sh 
    conda activate tri_env 
    ```
@@ -19,23 +19,26 @@ Tested platforms: Ubuntu22.04 (recommanded), MacOS15. While we donot ensure that
    cd Triangle-BBH
    ```
 3. **Install WF4PY**    
-   install modified `WF4PY` (optional, if use ``WF4PY`` CPU waveform): 
+   Install modified `WF4PY` (optional, if use ``WF4PY`` CPU waveform): 
    ```sh
    cd WF4Py 
    pip install . 
    cd .. 
    ```
 4. **Install BBHx**    
-   install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html). 
-   for a brief instruction, please run
+   Install ``BBHx`` (optional, if use `BBHx` GPU waveform): follow the [instructions of BBHx](https://mikekatz04.github.io/BBHx/html/index.html). 
+   For a brief instruction, please unzip the BBHx package in this repo, enter the folder and run
    ```
    conda install -c conda-forge gcc_linux-64 gxx_linux-64 gsl lapack=3.6.1 Cython
    ```
-   and
+   then
    ```
    pip install cupy-cudaxx.xx
    ```
-   (with xx.xx being the version of cupy that is compatible with your cuda toolkits) before installing bbhx from source. 
+   with xx.xx being the version of cupy that is compatible with your cuda toolkits. Then install BBHx from source:
+   ```
+   python setup.py install 
+   ```
    
 6. **Install Triangle_BBH** 
    ```sh   
