@@ -51,7 +51,7 @@ class WaveformGenerator():
         """
         self.waveform = WF.IMRPhenomHM(mode=mode)
     
-    def __call__(self, parameters, Nfreqs, fmin=1e-5, fmax=1e-1, freqs=None):
+    def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, freqs=None):
         """  
             parameters = {
                 "name" : numpy array of shape (Nevents),
