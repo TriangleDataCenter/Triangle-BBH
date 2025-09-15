@@ -89,7 +89,10 @@ class WaveformGenerator():
         # calculate frequency grids of shape (Nfreqs, Nevents) (will be transposed later), independent of modes
         # NOTE: for later convenience fgrid must be the same for all events
         if type(freqs) == np.ndarray:
-            fgrids = np.transpose(freqs) # (Nfreqs, Nevents)
+            if freqs.shape[0] == Nevents:
+                fgrids = np.transpose(freqs) # (Nfreqs, Nevents)
+            else: 
+                fgrids = np.transpose(np.tile(freqs, (Nevents, 1))) # (Nevents, Nfreqs) -> (Nfreqs, Nevents)
         else:
             # fcutarr = self.waveform.fcut(**parameters_in)
             # fmaxarr = np.full(fcutarr.shape, min(np.min(fcutarr), fmax))
