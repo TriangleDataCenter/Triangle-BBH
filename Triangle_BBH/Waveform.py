@@ -75,10 +75,7 @@ class WaveformGenerator():
                 ...
             }
         """
-        # if isinstance(parameters["chirp_mass"], float):
-        #     Nevents = 1
-        # else:
-        Nevents = parameters["chirp_mass"].shape[0]
+        Nevents = np.atleast_1d(parameters["chirp_mass"]).shape[0]
         
         # conversion of parameters
         parameters_in = {}
