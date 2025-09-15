@@ -79,11 +79,12 @@ class WaveformGenerator():
         
         # conversion of parameters
         parameters_in = {}
-        parameters_in["Mc"] = parameters["chirp_mass"]
-        parameters_in["eta"] = eta_q(parameters["mass_ratio"])
-        parameters_in["chi1z"] = parameters["spin_1z"]
-        parameters_in["chi2z"] = parameters["spin_2z"]
-        parameters_in["dL"] = parameters["luminosity_distance"] / 1e3 
+        parameters_in["Mc"] = np.atleast_1d(parameters["chirp_mass"])
+        parameters_in["eta"] = np.atleast_1d(eta_q(parameters["mass_ratio"]))
+        parameters_in["chi1z"] = np.atleast_1d(parameters["spin_1z"])
+        parameters_in["chi2z"] = np.atleast_1d(parameters["spin_2z"])
+        parameters_in["dL"] = np.atleast_1d(parameters["luminosity_distance"] / 1e3) 
+        parameters_in['coalescence_time'] = np.atleast_1d(parameters['coalescence_time'])
         
         # calculate frequency grids of shape (Nfreqs, Nevents) (will be transposed later), independent of modes
         # NOTE: for later convenience fgrid must be the same for all events
@@ -123,7 +124,7 @@ class WaveformGenerator():
         dphase_22_ref = (phase_22_ref - phase_22_ref_1) / (f_ref - f_ref_1) # (Nevents)
         phase_correct1 = -(fgrids - f_ref[:, np.newaxis]) * dphase_22_ref[:, np.newaxis] # correct t_ref = 0, i.e. d Phi / df @ f_ref = 0
         # add the extra contribution of coalescence time 
-        phase_correct1 += TWOPI * fgrids * parameters['coalescence_time'][:, np.newaxis] * DAY 
+        phase_correct1 += TWOPI * fgrids * parameters_in['coalescence_time'][:, np.newaxis] * DAY 
         for k, v in phas_out.items():
             phase_correct2 = -k[1] * 0.5 * phase_22_ref # correct phi_ref
             phas_out[k] = v + phase_correct1 + phase_correct2[:, np.newaxis]
