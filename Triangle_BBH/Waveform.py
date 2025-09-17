@@ -208,8 +208,8 @@ class WaveformGenerator():
             fgrids = np.geomspace(fminarr, fmaxarr, num=int(Nfreqs)) # (Nfreqs, Nevents)
             
         self.fcutarr = self.waveform.fcut(**parameters_in) # (Nevents) TEST 
-        FSTEP = 1e-5 # TEST 
-        self.fcutarr = self.fcutarr - FSTEP # TEST 
+        FSTEP = 1e-6 # TEST 
+        self.fcutarr = self.fcutarr - 5e-4 # TEST 
         fgrids_cut = np.array([
             self.fcutarr - FSTEP, 
             self.fcutarr
