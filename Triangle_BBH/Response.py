@@ -571,7 +571,138 @@ class FDTDIResponseGenerator():
         return X, Y, Z
 
 
+class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
+    def __init__(self, orbit_class, waveform_generator):
+        """ the waveform generator used here should depend on f_ref """
+        super().__init__(orbit_class, waveform_generator)
+    
+    def Response(
+        self, 
+        parameters, 
+        freqs, 
+        fmin=1e-5, # used to calculate freq grid
+        fmax=1e-1, # used to calculate freq grid
+        f_ref=1e-3, # used to set reference point 
+        Nfreqs=1024, # used to calculate freq grid
+        modes=[(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)], 
+        tmin=None, # minimum time of orbit in day 
+        tmax=None, # maximum time of orbit in day
+        tc_at_constellation=False, # whether tc is the coalescence time at constellation center (True) or SSB (False)
+        TDIGeneration='2nd',
+        optimal_combination=True,
+        interpolation_method='cubic',
+        output_by_mode=False, 
+        ):
+        """ "coalescence" should be interpreted as "reference" """
+        
+        # convert scalar parameters to arraies 
+        parameter_dict = parameters.copy()
+        for k, v in parameters.items():
+            parameter_dict[k] = np.atleast_1d(v)
+        
+        Nevents = parameter_dict['chirp_mass'].shape[0]
+        
+        # calculate polarization tensors (mode-dependent) and wavevectors (mode-independent)
+        Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes) 
+        k = self.WaveVector(parameters=parameter_dict) 
+        
+        # convert the coalescence time from constellaton center to SSB
+        if tc_at_constellation:
+            tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
+            parameter_dict['coalescence_time'] += -tc_delay / DAY # (Nevent)
+        
+        # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
+        if interpolation_method == None:
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, f_ref=f_ref, freqs=np.tile(freqs, (Nevents, 1)))
+        else:
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, f_ref=f_ref, freqs=None)
 
+        # calculate transfer function at the frequency and time grids and then interpolate (Nevents, Nfreqs) --> (Nevents, Nfreqs_out)
+        Nfreqs_out = freqs.shape[-1]
+        fill_value=0.
+        # fill_value="extrapolate"
+        if output_by_mode:
+            Nmode = len(modes)
+            X = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)
+            Y = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)
+            Z = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)
+            if interpolation_method == None: 
+                for imode, mode in enumerate(modes):
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    X[imode] = Xamp_int * np.exp(1.j * phase_int)
+                    Y[imode] = Yamp_int * np.exp(1.j * phase_int)
+                    Z[imode] = Zamp_int * np.exp(1.j * phase_int)       
+            else:
+                for imode, mode in enumerate(modes):
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    Xamp_func = interp1d(x=fgrids[0], y=Xamp_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    Yamp_func = interp1d(x=fgrids[0], y=Yamp_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    Zamp_func = interp1d(x=fgrids[0], y=Zamp_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    phase_func = interp1d(x=fgrids[0], y=phase_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    Xamp = Xamp_func(freqs)
+                    Yamp = Yamp_func(freqs)
+                    Zamp = Zamp_func(freqs)
+                    phase = phase_func(freqs)
+                    X[imode] = Xamp * np.exp(1.j * phase)
+                    Y[imode] = Yamp * np.exp(1.j * phase)
+                    Z[imode] = Zamp * np.exp(1.j * phase)       
+        else:
+            X = np.zeros((Nevents, Nfreqs_out), dtype=np.complex128)
+            Y = np.zeros((Nevents, Nfreqs_out), dtype=np.complex128)
+            Z = np.zeros((Nevents, Nfreqs_out), dtype=np.complex128)
+            if interpolation_method == None: 
+                for mode in modes:
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    X += Xamp_int * np.exp(1.j * phase_int)
+                    Y += Yamp_int * np.exp(1.j * phase_int)
+                    Z += Zamp_int * np.exp(1.j * phase_int)
+            else:
+                for mode in modes:
+                    _, GTDI = self.TransferFunction(t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode], TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax)
+                    Xamp_int = GTDI['X'] * amps[mode]
+                    Yamp_int = GTDI['Y'] * amps[mode]
+                    Zamp_int = GTDI['Z'] * amps[mode]
+                    phase_int = phas[mode]
+                    Xamp_func = interp1d(x=fgrids[0], y=Xamp_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    Yamp_func = interp1d(x=fgrids[0], y=Yamp_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    Zamp_func = interp1d(x=fgrids[0], y=Zamp_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    phase_func = interp1d(x=fgrids[0], y=phase_int, kind=interpolation_method, axis=1, bounds_error=False, fill_value=fill_value)
+                    Xamp = Xamp_func(freqs)
+                    Yamp = Yamp_func(freqs)
+                    Zamp = Zamp_func(freqs)
+                    phase = phase_func(freqs)
+                    X += Xamp * np.exp(1.j * phase)
+                    Y += Yamp * np.exp(1.j * phase)
+                    Z += Zamp * np.exp(1.j * phase)
+        if Nevents == 1: 
+            X = np.conjugate(X[0])
+            Y = np.conjugate(Y[0])
+            Z = np.conjugate(Z[0])
+        else:
+            X = np.conjugate(X)
+            Y = np.conjugate(Y)
+            Z = np.conjugate(Z)
+        
+        if optimal_combination:
+            A, E, T = self.AETfromXYZ(X, Y, Z)
+            results = np.array([A, E, T]) 
+        else:
+            results = np.array([X, Y, Z])
+        
+        results[np.abs(results)<1e-25]=0.
+        return results 
 
 
 class BBHxFDTDIResponseGenerator():
