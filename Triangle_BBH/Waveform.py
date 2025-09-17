@@ -169,8 +169,11 @@ class WaveformGenerator():
             "luminosity_distance" [MPC], "inclination" [rad], 
             "longitude" [rad], "latitude" [rad], "psi" [rad]
             11 parameters in total
-            *** NOTE that coalescence time has to be converted to tc at the SSB origin.
-            *** NOTE that coalescence phase parameter is ignored and set to 0
+            *** NOTE ***************
+            1. the coalescence frequency is set to the internal cut frequency of WF4Py
+            2. coalescence time has to be converted to tc at the SSB origin.
+            3. coalescence phase parameter is ignored and set to 0
+            ************************
             freqs should be None or numpy array of shape (Nevents, Nfreqs)
             
             Calculate the mode-independent frequency grids of shape (Nevents, Nfreqs), 
@@ -182,7 +185,6 @@ class WaveformGenerator():
             }
         """
         Nevents = np.atleast_1d(parameters["chirp_mass"]).shape[0]
-        # event_idx = np.arange(Nevents)
         
         # conversion of parameters
         parameters_in = {}
@@ -194,23 +196,19 @@ class WaveformGenerator():
         parameters_in['coalescence_time'] = np.atleast_1d(parameters['coalescence_time'])
         
         # calculate frequency grids of shape (Nfreqs, Nevents) (will be transposed later), independent of modes
-        # NOTE: for later convenience fgrid must be the same for all events
+        # for later convenience fgrid must be the same for all events
         if type(freqs) == np.ndarray:
             if freqs.shape[0] == Nevents:
                 fgrids = np.transpose(freqs) # (Nfreqs, Nevents)
             else: 
                 fgrids = np.transpose(np.tile(freqs, (Nevents, 1))) # (Nevents, Nfreqs) -> (Nfreqs, Nevents)
         else:
-            # self.fcutarr = self.waveform.fcut(**parameters_in) 
-            # fmaxarr = np.full(fcutarr.shape, min(np.min(fcutarr), fmax))
-            # fminarr = np.full(fcutarr.shape, fmin)
-            
             fminarr = np.full(Nevents, fmin)
             fmaxarr = np.full(Nevents, fmax)
             fgrids = np.geomspace(fminarr, fmaxarr, num=int(Nfreqs)) # (Nfreqs, Nevents)
             
         self.fcutarr = self.waveform.fcut(**parameters_in) # (Nevents) TEST 
-        FSTEP = 1e-6 # TEST 
+        FSTEP = 1e-5 # TEST 
         self.fcutarr = self.fcutarr - FSTEP # TEST 
         fgrids_cut = np.array([
             self.fcutarr - FSTEP, 
@@ -233,44 +231,18 @@ class WaveformGenerator():
         fgrids = fgrids.T # (Nevents, Nfreqs)
         
         dphase_22_cut = (phas_out_cut[(2,2)][:, 1] - phas_out_cut[(2,2)][:, 0]) / FSTEP # phase derivative (Nevents) TEST 
-        # phase_mode_correction1  = -dphase_22_cut[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs) TEST 
-        # phase_mode_correction1 += (TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] * fgrids # correction due to tc (Nevents, Nfreqs) TEST 
         phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs) TEST
         phase_22_cut = np.array([np.interp(x=self.fcutarr[ievent], xp=fgrids[ievent], fp=phas_out[(2,2)][ievent]) for ievent in range(Nevents)]) # (Nevents), TEST 
         for k, v in phas_out.items(): 
             phase_mode_correction2 = -0.5 * k[1] * phase_22_cut # -m/2 * phi_cut_22 (Nevents) TEST 
             phas_out[k] = v + phase_mode_correction1 + phase_mode_correction2[:, np.newaxis] # (Nevents, Nfreqs)
         
-        # # set t_ref = 0, phi_ref = 0 
-        # ind_ref = np.argmax(fgrids ** 2 * amps_out[(2, 2)], axis=1) # (Nevents)
-        # f_ref = fgrids[event_idx, ind_ref] # (Nevents)
-        # f_ref_1 = fgrids[event_idx, ind_ref - 1]
-        # phase_22_ref = phas_out[(2, 2)][event_idx, ind_ref] # (Nevents)
-        # phase_22_ref_1 = phas_out[(2, 2)][event_idx, ind_ref - 1]
-        # dphase_22_ref = (phase_22_ref - phase_22_ref_1) / (f_ref - f_ref_1) # (Nevents)
-        # phase_correct1 = -(fgrids - f_ref[:, np.newaxis]) * dphase_22_ref[:, np.newaxis] # correct t_ref = 0, i.e. d Phi / df @ f_ref = 0
-        # # add the extra contribution of coalescence time 
-        # phase_correct1 += TWOPI * fgrids * parameters_in['coalescence_time'][:, np.newaxis] * DAY 
-        # for k, v in phas_out.items():
-        #     phase_correct2 = -k[1] * 0.5 * phase_22_ref # correct phi_ref
-        #     phas_out[k] = v + phase_correct1 + phase_correct2[:, np.newaxis]
-        
         # calculate time grids by t-f relationship 
         tfs_out = {}
-        # dfgrids = fgrids[:, 1:] - fgrids[:, :-1]
-        # for k, v in phas_out.items():
-        #     tfs_out[k] = np.zeros_like(v) # (Nevents, Nfreqs)
-        #     dphase = v[:, 1:] - v[:, :-1]
-        #     tfs_out[k][:, :-1] = dphase / dfgrids / TWOPI 
-        #     tfs_out[k][:, -1] = tfs_out[k][:, -2] # fill the last frequency
         dfgrids = np.gradient(fgrids, axis=1) # (Nevents, Nfreqs) TEST 
         for k, v in phas_out.items(): 
             dphase = np.gradient(v, axis=1) # (Nevents, Nfreqs) TEST 
             tfs_out[k] = dphase / dfgrids / TWOPI # (Nevents, Nfreqs) TEST 
-            
-        # # TEST 
-        # self.fgrids_cut = fgrids_cut 
-        # self.phase_cut = phas_out_cut 
  
         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
     
