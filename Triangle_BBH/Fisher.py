@@ -187,9 +187,9 @@ class MultiChannelFisher():
         
         # PSD and FFT
         self.frequency = frequency
-        self.df = self.frequency[1] - self.frequency[0]
+        # self.df = self.frequency[1] - self.frequency[0]
         self.invcov = inverse_covariance
-        self.psd = np.array([self.invcov[i][i] for i in range(self.invcov.shape[1])]) * 4. * self.df 
+        # self.psd = np.array([self.invcov[i][i] for i in range(self.invcov.shape[1])]) * 4. * self.df 
         if inverse_covariance.shape[0] != self.waveform_fiducial.shape[1]:
             raise ValueError('the shape of CSD and waveform mismatch.')
 
