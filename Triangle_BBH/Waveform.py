@@ -170,7 +170,7 @@ class WaveformGenerator():
             "longitude" [rad], "latitude" [rad], "psi" [rad]
             11 parameters in total
             *** NOTE ***************
-            1. the coalescence frequency is set to the internal cut frequency of WF4Py
+            1. the coalescence frequency is set to the internal cut frequency of WF4Py - 5e-4 Hz (for numerical reason)
             2. coalescence time has to be converted to tc at the SSB origin.
             3. coalescence phase parameter is ignored and set to 0
             ************************
@@ -196,7 +196,6 @@ class WaveformGenerator():
         parameters_in['coalescence_time'] = np.atleast_1d(parameters['coalescence_time'])
         
         # calculate frequency grids of shape (Nfreqs, Nevents) (will be transposed later), independent of modes
-        # for later convenience fgrid must be the same for all events
         if type(freqs) == np.ndarray:
             if freqs.shape[0] == Nevents:
                 fgrids = np.transpose(freqs) # (Nfreqs, Nevents)
@@ -245,7 +244,6 @@ class WaveformGenerator():
             tfs_out[k] = dphase / dfgrids / TWOPI # (Nevents, Nfreqs) TEST 
  
         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
-    
 
 
 class BBHxWaveformGenerator():
