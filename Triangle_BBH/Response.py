@@ -572,8 +572,22 @@ class FDTDIResponseGenerator():
 
 
 class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
+    """   
+        parametrization: 
+            chirp_mass
+            mass_ratio 
+            spin_1z
+            spin_2z
+            reference_time 
+            reference_phase 
+            luminosity_distance 
+            inclination 
+            longitude 
+            latitude 
+            psi 
+    """
     def __init__(self, orbit_class, waveform_generator):
-        """ the waveform generator used here should depend on f_ref """
+        """ the waveform generator used here should depend on fref """
         super().__init__(orbit_class, waveform_generator)
     
     def Response(
@@ -582,23 +596,27 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         freqs, 
         fmin=1e-5, # used to calculate freq grid
         fmax=1e-1, # used to calculate freq grid
-        f_ref=1e-3, # used to set reference point 
+        fref=1e-3, # used to set reference point 
         Nfreqs=1024, # used to calculate freq grid
         modes=[(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)], 
         tmin=None, # minimum time of orbit in day 
         tmax=None, # maximum time of orbit in day
-        tc_at_constellation=False, # whether tc is the coalescence time at constellation center (True) or SSB (False)
+        tref_at_constellation=False, # whether tc is the coalescence time at constellation center (True) or SSB (False)
         TDIGeneration='2nd',
         optimal_combination=True,
         interpolation_method='cubic',
         output_by_mode=False, 
         ):
-        """ "coalescence" should be interpreted as "reference" """
         
         # convert scalar parameters to arraies 
         parameter_dict = parameters.copy()
         for k, v in parameters.items():
             parameter_dict[k] = np.atleast_1d(v)
+        
+        # these 2 parameters are duplicated since the Plm function needs "coalescence_phase" and the time frame conversion needs "coalescence_time"
+        # they should still be interpreted as reference values rather than values at merger 
+        parameter_dict["coalescence_time"] = parameter_dict["reference_time"]
+        parameter_dict["coalescence_phase"] = parameter_dict["reference_phase"]
         
         Nevents = parameter_dict['chirp_mass'].shape[0]
         
@@ -606,21 +624,21 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes) 
         k = self.WaveVector(parameters=parameter_dict) 
         
-        # convert the coalescence time from constellaton center to SSB
-        if tc_at_constellation:
-            tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
-            parameter_dict['coalescence_time'] += -tc_delay / DAY # (Nevent)
+        # convert the reference time from constellaton center to SSB
+        if tref_at_constellation:
+            tref_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
+            parameter_dict['coalescence_time'] += -tref_delay / DAY # (Nevent)
+            parameter_dict['reference_time'] += -tref_delay / DAY # (Nevent)
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
         if interpolation_method == None:
-            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, f_ref=f_ref, freqs=np.tile(freqs, (Nevents, 1)))
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, fref=fref, freqs=np.tile(freqs, (Nevents, 1)))
         else:
-            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, f_ref=f_ref, freqs=None)
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, fref=fref, freqs=None)
 
         # calculate transfer function at the frequency and time grids and then interpolate (Nevents, Nfreqs) --> (Nevents, Nfreqs_out)
         Nfreqs_out = freqs.shape[-1]
         fill_value=0.
-        # fill_value="extrapolate"
         if output_by_mode:
             Nmode = len(modes)
             X = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)

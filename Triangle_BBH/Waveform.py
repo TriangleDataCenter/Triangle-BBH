@@ -146,11 +146,10 @@ class WaveformGenerator():
         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
     
 class WaveformGeneratorFRef(WaveformGenerator):
-    """ "coalescence" should be interpreted as "reference" """
     def __init__(self, mode='full'):
         super().__init__(mode)
     
-    def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, f_ref=1e-3, freqs=None):
+    def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, fref=1e-3, freqs=None):
         """  
             parameters = {
                 "name" : numpy array of shape (Nevents),
@@ -158,14 +157,13 @@ class WaveformGeneratorFRef(WaveformGenerator):
             }
             the parameters include:
             "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
-            "coalescence_time" [DAY] (SSB), "coalescence_phase" [rad],
+            "reference_time" [DAY] (SSB), "reference_phase" [rad],
             "luminosity_distance" [MPC], "inclination" [rad], 
             "longitude" [rad], "latitude" [rad], "psi" [rad]
             11 parameters in total
             *** NOTE ***************
-            1. "coalescence" should be interpreted as "reference", and the reference point is specified by f_ref 
-            2. coalescence time has to be converted to tc at the SSB origin.
-            3. coalescence phase parameter is ignored and set to 0
+            1. reference time has to be converted to tc at the SSB origin.
+            2. reference phase parameter is ignored and set to 0
             ************************
             freqs should be None or numpy array of shape (Nevents, Nfreqs)
             
@@ -186,7 +184,7 @@ class WaveformGeneratorFRef(WaveformGenerator):
         parameters_in["chi1z"] = np.atleast_1d(parameters["spin_1z"])
         parameters_in["chi2z"] = np.atleast_1d(parameters["spin_2z"])
         parameters_in["dL"] = np.atleast_1d(parameters["luminosity_distance"] / 1e3) 
-        parameters_in['coalescence_time'] = np.atleast_1d(parameters['coalescence_time'])
+        parameters_in['reference_time'] = np.atleast_1d(parameters['reference_time'])
         
         # calculate frequency grids of shape (Nfreqs, Nevents) (will be transposed later), independent of modes
         if type(freqs) == np.ndarray:
@@ -200,11 +198,11 @@ class WaveformGeneratorFRef(WaveformGenerator):
             fgrids = np.geomspace(fminarr, fmaxarr, num=int(Nfreqs)) # (Nfreqs, Nevents)
         
         FSTEP = 1e-6 # TEST
-        # if f_ref is None:   
+        # if fref is None:   
         #     self.fcutarr = self.waveform.fcut(**parameters_in) # (Nevents) TEST  
         #     self.fcutarr = self.fcutarr - 1e-4 # TEST 
         # else: 
-        self.fcutarr = np.ones(Nevents) * f_ref
+        self.fcutarr = np.ones(Nevents) * fref
         fgrids_cut = np.array([
             self.fcutarr - FSTEP, 
             self.fcutarr
@@ -228,7 +226,7 @@ class WaveformGeneratorFRef(WaveformGenerator):
         # self.full_phase = phases
         
         dphase_22_cut = (phas_out[(2,2)][:, -1] - phas_out[(2,2)][:, -2]) / FSTEP # phase derivative (Nevents) TEST 
-        phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs+2) TEST
+        phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs+2) TEST
         phase_22_cut = phas_out[(2,2)][:, -1] # (Nevents)
         for k, v in phas_out.items(): 
             phase_mode_correction2 = -0.5 * k[1] * phase_22_cut # -m/2 * phi_cut_22 (Nevents) TEST 
