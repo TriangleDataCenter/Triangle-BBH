@@ -145,36 +145,13 @@ class WaveformGenerator():
 
         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
     
+
+
 class WaveformGeneratorFRef(WaveformGenerator):
     def __init__(self, mode='full'):
         super().__init__(mode)
     
     def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, fref=1e-3, freqs=None):
-        """  
-            parameters = {
-                "name" : numpy array of shape (Nevents),
-                ...
-            }
-            the parameters include:
-            "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
-            "reference_time" [DAY] (SSB), "reference_phase" [rad],
-            "luminosity_distance" [MPC], "inclination" [rad], 
-            "longitude" [rad], "latitude" [rad], "psi" [rad]
-            11 parameters in total
-            *** NOTE ***************
-            1. reference time has to be converted to tc at the SSB origin.
-            2. reference phase parameter is ignored and set to 0
-            ************************
-            freqs should be None or numpy array of shape (Nevents, Nfreqs)
-            
-            Calculate the mode-independent frequency grids of shape (Nevents, Nfreqs), 
-            and mode-dependent (Nevents, Nfreqs) arrays of GW amplitudes, phases and t-f relationships, 
-            stored in dictionaries with the keys being mode numbers.
-            e.g. amps_out = {
-                (l, m) : (Nevents, Nfreqs) array,
-                ...
-            }
-        """
         Nevents = np.atleast_1d(parameters["chirp_mass"]).shape[0]
         
         # conversion of parameters
@@ -221,9 +198,6 @@ class WaveformGeneratorFRef(WaveformGenerator):
             amps_out[(int(k[0]), int(k[1]))] = (v.T)[:, :-2] # (Nevents, Nfreqs)
             phas_out[(int(k[0]), int(k[1]))] = phases[k].T # (Nevents, Nfreqs+2)
         fgrids = fgrids.T # (Nevents, Nfreqs+2)
-        
-        # self.full_freq = fgrids 
-        # self.full_phase = phases
         
         dphase_22_cut = (phas_out[(2,2)][:, -1] - phas_out[(2,2)][:, -2]) / FSTEP # phase derivative (Nevents) TEST 
         phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs+2) TEST

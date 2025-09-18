@@ -571,6 +571,7 @@ class FDTDIResponseGenerator():
         return X, Y, Z
 
 
+
 class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
     """   
         parametrization: 
@@ -609,26 +610,29 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         ):
         
         # convert scalar parameters to arraies 
-        parameter_dict = parameters.copy()
+        parameter_dict = dict() 
         for k, v in parameters.items():
             parameter_dict[k] = np.atleast_1d(v)
+        Nevents = parameter_dict['chirp_mass'].shape[0]
         
         # these 2 parameters are duplicated since the Plm function needs "coalescence_phase" and the time frame conversion needs "coalescence_time"
         # they should still be interpreted as reference values rather than values at merger 
         parameter_dict["coalescence_time"] = parameter_dict["reference_time"]
         parameter_dict["coalescence_phase"] = parameter_dict["reference_phase"]
-        
-        Nevents = parameter_dict['chirp_mass'].shape[0]
-        
+                
         # calculate polarization tensors (mode-dependent) and wavevectors (mode-independent)
         Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes) 
         k = self.WaveVector(parameters=parameter_dict) 
+
+        parameter_dict.pop('coalescence_phase') # REMOVE useless parameter 
         
         # convert the reference time from constellaton center to SSB
         if tref_at_constellation:
             tref_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
-            parameter_dict['coalescence_time'] += -tref_delay / DAY # (Nevent)
+            # parameter_dict['coalescence_time'] += -tref_delay / DAY # (Nevent)
             parameter_dict['reference_time'] += -tref_delay / DAY # (Nevent)
+
+        parameter_dict.pop('coalescence_time') # REMOVE useless parameter 
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
         if interpolation_method == None:
@@ -721,6 +725,7 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         
         results[np.abs(results)<1e-25]=0.
         return results 
+
 
 
 class BBHxFDTDIResponseGenerator():
