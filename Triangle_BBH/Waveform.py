@@ -37,6 +37,114 @@ def m1_m2_Mc_q(Mc, q):
     return m1, m2
 
 
+# class WaveformGenerator():
+#     def __init__(self, mode='full'):
+#         """ 
+#             vectorized wrapper of the PhenomHM waveform 
+#             using the Fourier transformation convension of S. Marsat
+#             h_lm(f) = A_lm(f) exp[i Phi_lm(f)]
+#             t_lm(f) = d Phi_lm(f) / df / 2PI
+#             with Phi_lm(f) being -Psi_lm(f) in the paper
+            
+#             mode = 'full': HM waveform
+#             mode = 'primary': D waveform
+#         """
+#         self.waveform = WF.IMRPhenomHM(mode=mode)
+    
+#     def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, freqs=None):
+#         """  
+#             parameters = {
+#                 "name" : numpy array of shape (Nevents),
+#                 ...
+#             }
+#             the parameters include:
+#             "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
+#             "coalescence_time" [DAY] (SSB), "coalescence_phase" [rad],
+#             "luminosity_distance" [MPC], "inclination" [rad], 
+#             "longitude" [rad], "latitude" [rad], "psi" [rad]
+#             11 parameters in total
+#             *** NOTE that coalescence time has to be converted to tc at the SSB origin.
+#             *** NOTE that coalescence phase parameter is ignored and set to 0
+#             freqs should be None or numpy array of shape (Nevents, Nfreqs)
+            
+#             Calculate the mode-independent frequency grids of shape (Nevents, Nfreqs), 
+#             and mode-dependent (Nevents, Nfreqs) arrays of GW amplitudes, phases and t-f relationships, 
+#             stored in dictionaries with the keys being mode numbers.
+#             e.g. amps_out = {
+#                 (l, m) : (Nevents, Nfreqs) array,
+#                 ...
+#             }
+#         """
+#         Nevents = np.atleast_1d(parameters["chirp_mass"]).shape[0]
+        
+#         # conversion of parameters
+#         parameters_in = {}
+#         parameters_in["Mc"] = np.atleast_1d(parameters["chirp_mass"])
+#         parameters_in["eta"] = np.atleast_1d(eta_q(parameters["mass_ratio"]))
+#         parameters_in["chi1z"] = np.atleast_1d(parameters["spin_1z"])
+#         parameters_in["chi2z"] = np.atleast_1d(parameters["spin_2z"])
+#         parameters_in["dL"] = np.atleast_1d(parameters["luminosity_distance"] / 1e3) 
+#         parameters_in['coalescence_time'] = np.atleast_1d(parameters['coalescence_time'])
+        
+#         # calculate frequency grids of shape (Nfreqs, Nevents) (will be transposed later), independent of modes
+#         # NOTE: for later convenience fgrid must be the same for all events
+#         if type(freqs) == np.ndarray:
+#             if freqs.shape[0] == Nevents:
+#                 fgrids = np.transpose(freqs) # (Nfreqs, Nevents)
+#             else: 
+#                 fgrids = np.transpose(np.tile(freqs, (Nevents, 1))) # (Nevents, Nfreqs) -> (Nfreqs, Nevents)
+#         else:
+#             # fcutarr = self.waveform.fcut(**parameters_in)
+#             # fmaxarr = np.full(fcutarr.shape, min(np.min(fcutarr), fmax))
+#             # fminarr = np.full(fcutarr.shape, fmin)
+            
+#             fminarr = np.full(Nevents, fmin)
+#             fmaxarr = np.full(Nevents, fmax)
+            
+#             fgrids = np.geomspace(fminarr, fmaxarr, num=int(Nfreqs))
+            
+        
+#         # calculate amplitudes, phases by modes, each mode is originally a (Nfreqs, Nevents) array (will be transposed)
+#         amplitudes = self.waveform.Ampl(fgrids, **parameters_in) # dict
+#         phases = self.waveform.Phi(fgrids, **parameters_in) # dict
+#         # adjust keys to [(2,2), (2, 1), (3, 2), (3, 3), (4, 3), (4, 4)]
+#         # and shapes to (Nevents, Nfreqs)
+#         amps_out = {}
+#         phas_out = {}
+#         for k, v in amplitudes.items():
+#             amps_out[(int(k[0]), int(k[1]))] = v.T 
+#             phas_out[(int(k[0]), int(k[1]))] = phases[k].T 
+#         fgrids = fgrids.T 
+            
+#         # set t_ref = 0, phi_ref = 0 
+#         # This step may result in slightly different phases for different resolutions. Therefore it is recommanded to keep consistency in terms of frequency resolution,  
+#         #  or otherwise, optimization of tc, phic would be required to get coincident results. 
+#         ind_ref = np.argmax(fgrids ** 2 * amps_out[(2, 2)], axis=1)
+#         f_ref = fgrids[np.arange(Nevents), ind_ref] # (Nevents)
+#         f_ref_1 = fgrids[np.arange(Nevents), ind_ref - 1]
+#         phase_22_ref = phas_out[(2, 2)][np.arange(Nevents), ind_ref] # (Nevents)
+#         phase_22_ref_1 = phas_out[(2, 2)][np.arange(Nevents), ind_ref - 1]
+#         dphase_22_ref = (phase_22_ref - phase_22_ref_1) / (f_ref - f_ref_1) # (Nevents)
+#         f_mid = 0.5 * (f_ref + f_ref_1) # (Nevents)
+#         phase_mid = 0.5 * (phase_22_ref + phase_22_ref_1) # (Nevents)
+#         phase_correct1 = (fgrids - f_mid[:, np.newaxis]) * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] # tc correction (Nevents, Nfreqs)
+#         for k, v in phas_out.items():
+#             phase_correct2 = -k[1] * 0.5 * phase_mid # correct phi_ref
+#             phas_out[k] = v + phase_correct1 + phase_correct2[:, np.newaxis]
+        
+#         # calculate time grids by t-f relationship 
+#         tfs_out = {}
+#         dfgrids = fgrids[:, 1:] - fgrids[:, :-1]
+#         for k, v in phas_out.items():
+#             tfs_out[k] = np.zeros_like(v)
+#             dphase = v[:, 1:] - v[:, :-1]
+#             tfs_out[k][:, :-1] = dphase / dfgrids / TWOPI 
+#             tfs_out[k][:, -1] = tfs_out[k][:, -2] # fill the last frequency
+            
+#         self.f_ref = f_mid
+
+#         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
+
 class WaveformGenerator():
     def __init__(self, mode='full'):
         """ 
@@ -121,15 +229,15 @@ class WaveformGenerator():
         #  or otherwise, optimization of tc, phic would be required to get coincident results. 
         ind_ref = np.argmax(fgrids ** 2 * amps_out[(2, 2)], axis=1)
         f_ref = fgrids[np.arange(Nevents), ind_ref] # (Nevents)
-        f_ref_1 = fgrids[np.arange(Nevents), ind_ref - 1]
+        f_ref_1_left = fgrids[np.arange(Nevents), ind_ref - 1]
+        f_ref_1_right = fgrids[np.arange(Nevents), ind_ref + 1]
         phase_22_ref = phas_out[(2, 2)][np.arange(Nevents), ind_ref] # (Nevents)
-        phase_22_ref_1 = phas_out[(2, 2)][np.arange(Nevents), ind_ref - 1]
-        dphase_22_ref = (phase_22_ref - phase_22_ref_1) / (f_ref - f_ref_1) # (Nevents)
-        f_mid = 0.5 * (f_ref + f_ref_1) # (Nevents)
-        phase_mid = 0.5 * (phase_22_ref + phase_22_ref_1) # (Nevents)
-        phase_correct1 = (fgrids - f_mid[:, np.newaxis]) * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] # tc correction (Nevents, Nfreqs)
+        phase_22_ref_1_left = phas_out[(2, 2)][np.arange(Nevents), ind_ref - 1]
+        phase_22_ref_1_right = phas_out[(2, 2)][np.arange(Nevents), ind_ref + 1]
+        dphase_22_ref = (phase_22_ref_1_right - phase_22_ref_1_left) / (f_ref_1_right - f_ref_1_left) # (Nevents)
+        phase_correct1 = (fgrids - f_ref[:, np.newaxis]) * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] # tc correction (Nevents, Nfreqs)
         for k, v in phas_out.items():
-            phase_correct2 = -k[1] * 0.5 * phase_mid # correct phi_ref
+            phase_correct2 = -k[1] * 0.5 * phase_22_ref # correct phi_ref
             phas_out[k] = v + phase_correct1 + phase_correct2[:, np.newaxis]
         
         # calculate time grids by t-f relationship 
@@ -141,7 +249,7 @@ class WaveformGenerator():
             tfs_out[k][:, :-1] = dphase / dfgrids / TWOPI 
             tfs_out[k][:, -1] = tfs_out[k][:, -2] # fill the last frequency
             
-        self.f_ref = f_mid
+        self.f_ref = f_ref
 
         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
     
