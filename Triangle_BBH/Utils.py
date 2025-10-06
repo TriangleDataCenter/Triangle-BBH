@@ -98,11 +98,45 @@ def ParamArr2ParamDict(params):
     p['psi'] = params[10] 
     return p 
 
+def ParamDict2ParamArrFref(param_dict):
+    """ 
+    convert parameter dict to parameter array where Mc and D are in logscalse, 
+    inclination and latitude are converted to their cosine and sine values 
+    """
+    return [
+        np.log10(param_dict['chirp_mass']),
+        param_dict['mass_ratio'],
+        param_dict['spin_1z'],
+        param_dict['spin_2z'],
+        param_dict['reference_time'],
+        param_dict['reference_phase'],
+        np.log10(param_dict['luminosity_distance']),
+        np.cos(param_dict['inclination']),
+        param_dict['longitude'],
+        np.sin(param_dict['latitude']),
+        param_dict['psi']
+    ]
+
+def ParamArr2ParamDictFref(params):
+    p = dict()
+    p['chirp_mass'] = np.power(10., params[0])
+    p['mass_ratio'] = params[1]
+    p['spin_1z'] = params[2]
+    p['spin_2z'] = params[3]
+    p['reference_time'] = params[4]
+    p['reference_phase'] = params[5]
+    p['luminosity_distance'] = np.power(10., params[6])
+    p['inclination'] = np.arccos(params[7])
+    p['longitude'] = params[8]
+    p['latitude'] = np.arcsin(params[9])
+    p['psi'] = params[10] 
+    return p 
+
 
 
 class Likelihood:
     # TODO: mode-by-mode heterodyne for the PhenonmHM waveform 
-    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False, verbose=0):
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
         """ 
         Args: 
             response_generator: generate frequency-domain TDI responses for given parameters 
@@ -138,6 +172,13 @@ class Likelihood:
         
         self.het_prepare_flag = False 
         
+        if Fref_waveform: 
+            self.ParamDict2ParamArr = ParamDict2ParamArrFref
+            self.ParamArr2ParamDict = ParamArr2ParamDictFref
+        else: 
+            self.ParamDict2ParamArr = ParamDict2ParamArr
+            self.ParamArr2ParamDict = ParamArr2ParamDict
+        
     def full_log_like(self, parameter_array): 
         """ 
         Args: 
@@ -147,7 +188,7 @@ class Likelihood:
             loglike 
         """
         template = self.response_generator.Response(
-            parameters=ParamArr2ParamDict(parameter_array),
+            parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.frequency,
             **self.response_kwargs,
         ) # (3, Nf)
@@ -167,7 +208,7 @@ class Likelihood:
             loglike of shape (Nevents)
         """
         template = self.response_generator.Response(
-            parameters=ParamArr2ParamDict(parameter_array),
+            parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.frequency,
             **self.response_kwargs,
         ) # (3, Nevents, Nf)
@@ -191,7 +232,7 @@ class Likelihood:
         """
         if base_waveform is None:
             self.h0 = self.response_generator.Response(
-                parameters=ParamArr2ParamDict(base_parameters),
+                parameters=self.ParamArr2ParamDict(base_parameters),
                 freqs=self.frequency,
                 **self.response_kwargs,
             ) # (3, Nf)
@@ -205,7 +246,7 @@ class Likelihood:
         # calculate base waveform at the sparce grid (1st try)
         if base_waveform is None:
             self.het_h0 = self.response_generator.Response(
-                parameters=ParamArr2ParamDict(base_parameters),
+                parameters=self.ParamArr2ParamDict(base_parameters),
                 freqs=self.het_frequency,
                 **self.response_kwargs,
             ) # (3, N_het_f)
@@ -223,7 +264,7 @@ class Likelihood:
         # calculate base waveform at the sparce grid (final)
         if base_waveform is None: 
             self.het_h0 = self.response_generator.Response(
-                parameters=ParamArr2ParamDict(base_parameters),
+                parameters=self.ParamArr2ParamDict(base_parameters),
                 freqs=self.het_frequency,
                 **self.response_kwargs,
             ) # (3, N_het_f)
@@ -280,7 +321,7 @@ class Likelihood:
             
         # calculate sparce template 
         het_h = self.response_generator.Response(
-            parameters=ParamArr2ParamDict(parameter_array),
+            parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.het_frequency,
             **self.response_kwargs,
         ) # (3, N_het_f)
@@ -322,7 +363,7 @@ class Likelihood:
             
         # calculate sparce template 
         het_h = self.xp.transpose(self.response_generator.Response(
-            parameters=ParamArr2ParamDict(parameter_array),
+            parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.het_frequency,
             **self.response_kwargs,
         ), (1, 0, 2)) # (Nevents, 3, N_het_f)
