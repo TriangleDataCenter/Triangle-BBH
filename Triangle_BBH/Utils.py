@@ -826,6 +826,335 @@ class Fstatistics(Likelihood):
         p['latitude'] = np.arcsin(params[6])
         return p 
     
+class FstatisticsFref(Likelihood):
+    extrinsic_parameter_names = [
+        "luminosity_distance", 
+        "inclination", 
+        "reference_phase", 
+        "psi"
+        ]
+    intrinsic_parameter_names = [
+        'chirp_mass',
+        'mass_ratio',
+        'spin_1z',
+        'spin_2z',
+        'reference_time',
+        'longitude',
+        'latitude'
+        ]
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False, verbose=0):
+        super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, True, use_gpu, verbose)
+        self.SUM = self.xp.sum 
+        self.CONJ = self.xp.conjugate
+        self.RE = self.xp.real
+        self.NX = self.xp.newaxis 
+        self.MATMUL = self.xp.matmul
+        self.TRANS = self.xp.transpose
+
+    def self_inner_product_vectorized(self, template_channels):
+        """ 
+            template_channels: shape (Nevent, Nchannel, Nfreq)
+        """
+        residual = self.TRANS(template_channels, (0, 2, 1)) # (Nevent, 3, Nf) -> (Nevent, Nf, 3)
+        residual_dagger = self.CONJ(residual[:, :, self.NX, :]) # (Nevent, Nf, 1, 3)
+        residual = residual[:, :, :, self.NX] # (Nevent, Nf, 3, 1)
+        inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger, self.invserse_covariance_matrix), residual), axis=(1,2,3)) # (Nevent)
+        return self.RE(inners) # (Nevent)
+    
+    def inner_product_vectorized(self, template_channels1, template_channels2):
+        """ 
+            template_channels1: shape (Nevent, Nchannel, Nfreq)
+            template_channels2: shape (Nevent, Nchannel, Nfreq)
+        """
+        residual1 = self.TRANS(template_channels1, (0, 2, 1)) # (Nevent, 3, Nf) -> (Nevent, Nf, 3)
+        residual_dagger1 = self.CONJ(residual1[:, :, self.NX, :]) # (Nevent, Nf, 1, 3)
+
+        residual2 = self.TRANS(template_channels2, (0, 2, 1)) # (Nevent, 3, Nf) -> (Nevent, Nf, 3)
+        residual2 = residual2[:, :, :, self.NX] # (Nevent, Nf, 3, 1)
+
+        inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(1,2,3)) # (Nevent)
+        return self.RE(inners) # (Nevent)
+    
+    def calculate_Fstat(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
+        """  
+        calculate F-statistics for a batch of events TODO: expand to HM waveform 
+        Args: 
+            intrinsic_parameters: dictionary of intrinsic parameters (except for D, iota, phic, psi), each parameter is a float number. 
+        Returns: 
+            F-statistics
+        """        
+        full_parameters1 = intrinsic_parameters.copy() 
+        full_parameters1["luminosity_distance"] = 0.25 
+        full_parameters1["reference_phase"] = 0.
+        full_parameters1["inclination"] = PI / 2. 
+        full_parameters1["psi"] = 0.
+
+        temp1 = self.response_generator.Response(
+            parameters=full_parameters1,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannel=3, Nfreq)
+        
+        full_parameters2 = full_parameters1.copy() 
+        full_parameters2["psi"] = PI / 4. 
+
+        temp2 = self.response_generator.Response(
+            parameters=full_parameters2,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannel=3, Nfreq)
+
+        X1 = temp1 # (Nchannel, Nfreq)
+        X2 = 1.j * X1 # (Nchannel, Nfreq)
+        X3 = temp2 # (Nchannel, Nfreq)
+        X4 = 1.j * X3 # (Nchannel, Nfreq) 
+        # print("shape of X1:", X1.shape) # TEST 
+        
+        Nvector = self.RE(self.xp.array([
+            FrequencyDomainCovarianceInnerProduct(self.data, X1, self.invserse_covariance_matrix), 
+            FrequencyDomainCovarianceInnerProduct(self.data, X2, self.invserse_covariance_matrix),
+            FrequencyDomainCovarianceInnerProduct(self.data, X3, self.invserse_covariance_matrix),
+            FrequencyDomainCovarianceInnerProduct(self.data, X4, self.invserse_covariance_matrix),
+        ])) # (4,) all real numbers 
+        # print("shape of N vector:", Nvector.shape) # TEST 
+        
+        M12 = FrequencyDomainCovarianceInnerProduct(X1, X2, self.invserse_covariance_matrix)
+        M13 = FrequencyDomainCovarianceInnerProduct(X1, X3, self.invserse_covariance_matrix)
+        M14 = FrequencyDomainCovarianceInnerProduct(X1, X4, self.invserse_covariance_matrix)
+        M23 = FrequencyDomainCovarianceInnerProduct(X2, X3, self.invserse_covariance_matrix)
+        M24 = FrequencyDomainCovarianceInnerProduct(X2, X4, self.invserse_covariance_matrix)
+        M34 = FrequencyDomainCovarianceInnerProduct(X3, X4, self.invserse_covariance_matrix)
+        Mmatrix = self.RE(self.xp.array([
+            [FrequencyDomainCovarianceInnerProduct(X1, X1, self.invserse_covariance_matrix), M12, M13, M14], 
+            [M12, FrequencyDomainCovarianceInnerProduct(X2, X2, self.invserse_covariance_matrix), M23, M24], 
+            [M13, M23, FrequencyDomainCovarianceInnerProduct(X3, X3, self.invserse_covariance_matrix), M34], 
+            [M14, M24, M34, FrequencyDomainCovarianceInnerProduct(X4, X4, self.invserse_covariance_matrix)]
+        ])) # (4, 4) all real numbers 
+        # print("shape of M matrix:", Mmatrix.shape) # TEST 
+        
+        # invMmatrix = self.xp.linalg.inv(Mmatrix) # (4, 4)
+        # NM = self.MATMUL(invMmatrix, Nvector) # (4,)
+        # NMN = self.MATMUL(Nvector, NM) # float 
+        NM = np.linalg.solve(Mmatrix, Nvector) # (4,)
+        res = 0.5 * Nvector @ NM # float, Fstat 0.5 * N^T M^{-1} N
+        
+        if return_a:
+            res_a = NM
+            return res_a # (4,)
+            
+        if return_recovered_wave: 
+            res_a = NM # (4,)
+            res_wf = res_a[0] * X1 + res_a[1] * X2 + res_a[2] * X3 + res_a[3] * X4 # (Nchannel, Nfreq)
+            return res_wf # (Nchannel, Nfreq)
+
+        return float(res) # float 
+
+    def calculate_Fstat_vectorized(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
+        """  
+        calculate F-statistics for a batch of events TODO: expand to HM waveform 
+        Args: 
+            intrinsic_parameters: dictionary of intrinsic parameters (except for D, iota, phic, psi), each item is a numpy array of shape (Nevent). 
+        Returns: 
+            F-statistics of events 
+        """
+        Nevent = len(np.atleast_1d(intrinsic_parameters["chirp_mass"]))
+        
+        full_parameters1 = copy.deepcopy(intrinsic_parameters)
+        full_parameters1["luminosity_distance"] = np.ones(Nevent) * 0.25 
+        full_parameters1["reference_phase"] = np.zeros(Nevent)
+        full_parameters1["inclination"] = np.ones(Nevent) * PI / 2. 
+        full_parameters1["psi"] = np.zeros(Nevent)
+        # print("1st parameter set:") # TEST 
+        # print(full_parameters1) # TEST 
+
+        temp1 = self.response_generator.Response(
+            parameters=full_parameters1,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannel=3, Nevent, Nfreq)
+        
+        full_parameters2 = copy.deepcopy(full_parameters1)
+        full_parameters2["psi"] = np.ones(Nevent) * PI / 4. 
+        # print("2nd parameter set:") # TEST 
+        # print(full_parameters2) # TEST 
+
+        temp2 = self.response_generator.Response(
+            parameters=full_parameters2,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannel=3, Nevent, Nfreq)
+
+        if Nevent == 1:
+            temp1 = temp1[:, self.NX, :]
+            temp2 = temp2[:, self.NX, :]
+
+        X1 = self.TRANS(temp1, axes=(1, 0, 2)) # (Nevent, Nchannel, Nfreq)
+        X2 = 1.j * X1 # (Nevent, Nchannel, Nfreq)
+        X3 = self.TRANS(temp2, axes=(1, 0, 2)) # (Nevent, Nchannel, Nfreq)
+        X4 = 1.j * X3 # (Nevent, Nchannel, Nfreq) 
+        # print("shape of X1:", X1.shape) # TEST 
+        
+        data_expand = self.data[self.NX, :, :] # (1, Nchannel, Nfreq)
+        Nvector = self.TRANS(self.xp.array([
+            self.inner_product_vectorized(data_expand, X1), 
+            self.inner_product_vectorized(data_expand, X2), 
+            self.inner_product_vectorized(data_expand, X3), 
+            self.inner_product_vectorized(data_expand, X4), 
+        ])) # (4, Nevent) -> (Nevent, 4) inner products, all real numbers 
+        # print("shape of N vector:", Nvector.shape) # TEST 
+        
+        M12 = self.inner_product_vectorized(X1, X2) # (Nevent), real numbers 
+        M13 = self.inner_product_vectorized(X1, X3)
+        M14 = self.inner_product_vectorized(X1, X4)
+        M23 = self.inner_product_vectorized(X2, X3)
+        M24 = self.inner_product_vectorized(X2, X4)
+        M34 = self.inner_product_vectorized(X3, X4)
+        Mmatrix = self.TRANS(self.xp.array([
+            [self.self_inner_product_vectorized(X1), M12, M13, M14], 
+            [M12, self.self_inner_product_vectorized(X2), M23, M24], 
+            [M13, M23, self.self_inner_product_vectorized(X3), M34], 
+            [M14, M24, M34, self.self_inner_product_vectorized(X4)]
+        ]), axes=(2, 0, 1)) # (4, 4, Nevent) -> (Nevent, 4, 4) inner products, all real numbers 
+        # print("shape of M matrix:", Mmatrix.shape) # TEST 
+        
+        invMmatrix = self.xp.linalg.inv(Mmatrix) # (Nevent, 4, 4)
+        Nvector_col = Nvector[..., self.NX] # (Nevent, 4, 1)
+        NM = self.MATMUL(invMmatrix, Nvector_col) # (Nevent, 4, 1)
+        Nvector_row = Nvector[:, self.NX, :] # (Nevent, 1, 4)
+        NMN = self.MATMUL(Nvector_row, NM) # (Nevent, 1, 1)
+        
+        res = 0.5 * NMN[:, 0, 0] # (Nevent) Fstat 0.5 * N^T M^{-1} N
+        
+        if return_a:
+            res_a = NM.squeeze(axis=-1) # (Nevent, 4)
+            if self.use_gpu:
+                return res_a.get() # (Nevent, 4)
+            else: 
+                return res_a # (Nevent, 4)
+            
+        if return_recovered_wave: 
+            res_a = NM.squeeze(axis=-1) # (Nevent, 4)
+            res_wf = res_a[:, 0] * self.TRANS(X1, axes=(1, 2, 0)) # (Nchannel, Nfreq, Nevent)
+            res_wf += res_a[:, 1] * self.TRANS(X2, axes=(1, 2, 0))
+            res_wf += res_a[:, 2] * self.TRANS(X3, axes=(1, 2, 0))
+            res_wf += res_a[:, 3] * self.TRANS(X4, axes=(1, 2, 0)) 
+            if Nevent == 1: 
+                return res_wf[:, :, 0] # (Nchannel, Nfreq)
+            else:
+                return self.TRANS(res_wf, (0, 2, 1)) # (Nchannel, Nevent, Nfreq)
+
+        # else:
+        if self.use_gpu:
+            if Nevent == 1:
+                return res.get()[0]
+            else:
+                return res.get() # (Nevent)
+        else: 
+            if Nevent == 1: 
+                return res[0]
+            else: 
+                return res 
+
+    @staticmethod
+    def a_to_extrinsic(a):
+        """ 
+        TODO: expand to HM waveform 
+        Args: 
+            a: (4), numpy array of the a coefficients 
+        Returns: 
+            dictionary of extrinsic parameters 
+        """
+        extrinsic_parameters = dict()
+        
+        P = np.linalg.norm(a) ** 2 # float 
+        Q = a[1] * a[2] - a[0] * a[3] # float 
+        Delta = np.sqrt(P ** 2 - 4. * Q ** 2) # float 
+        Aplus = np.sqrt((P + Delta) / 2.) # float
+        Across = np.sign(Q) * np.sqrt((P - Delta) / 2.) # float
+        
+        tmp = Aplus + np.sqrt(Aplus ** 2 - Across ** 2) # float 
+        extrinsic_parameters["luminosity_distance"] = 0.5 / tmp # float 
+        extrinsic_parameters["inclination"] = np.arccos(Across / tmp) # float 
+
+        P = np.sqrt((a[0] + a[3])**2 + (a[1] - a[2])**2) # float 
+        Q = np.sqrt((a[0] - a[3])**2 + (a[1] + a[2])**2) # float 
+        Aplus = P + Q # float 
+        Across = P - Q # float 
+        extrinsic_parameters["psi"] = 0.5 * np.arctan2(Aplus*a[3] - Across*a[0], Aplus*a[1] + Across*a[2]) # float (-PI/2, PI/2)
+        sgns2p = np.sign(np.sin(2. * extrinsic_parameters["psi"]))
+        extrinsic_parameters["reference_phase"] = -0.5*np.arctan2((Aplus*a[3] - Across*a[0])*sgns2p, (Aplus*a[2] + Across*a[1])*sgns2p) # float (-PI/2, PI/2)
+        if extrinsic_parameters["psi"] < 0: 
+            extrinsic_parameters["psi"] += PI # (0, PI)
+        if extrinsic_parameters["reference_phase"] < 0.: 
+            extrinsic_parameters["reference_phase"] += PI # (0, PI)
+           
+        return extrinsic_parameters
+        
+    @staticmethod
+    def a_to_extrinsic_vectorized(a):
+        """ 
+        TODO: expand to HM waveform 
+        Args: 
+            a: (Nevent, 4), numpy array of the a coefficients 
+        Returns: 
+            dictionary of extrinsic parameters 
+        """
+        extrinsic_parameters = dict()
+        
+        P = np.linalg.norm(a, axis=1) ** 2 # (Nevent)
+        Q = a[:, 1] * a[:, 2] - a[:, 0] * a[:, 3] # (Nevent)
+        Delta = np.sqrt(P ** 2 - 4. * Q ** 2) # (Nevent)
+        Aplus = np.sqrt((P + Delta) / 2.) # (Nevent)
+        Across = np.sign(Q) * np.sqrt((P - Delta) / 2.) # (Nevent)
+        
+        tmp = Aplus + np.sqrt(Aplus ** 2 - Across ** 2) # (Nevent)
+        extrinsic_parameters["luminosity_distance"] = 0.5 / tmp # (Nevent)
+        extrinsic_parameters["inclination"] = np.arccos(Across / tmp) # (Nevent)
+        # extrinsic_parameters["reference_phase"] = -np.arctan(2. * (a[:, 0] * a[:, 1] + a[:, 2] * a[:, 3]) / (a[:, 0] ** 2 + a[:, 2] ** 2 - a[:, 1] ** 2 - a[:, 3] ** 2)) / 2. # (Nevent), one possible solution 
+        # extrinsic_parameters["psi"] = np.arctan(2. * (a[:, 0] * a[:, 2] + a[:, 1] * a[:, 3]) / (a[:, 0] ** 2 + a[:, 1] ** 2 - a[:, 2] ** 2 - a[:, 3] ** 2)) / 4. # (Nevent), one possible solution 
+
+        P = np.sqrt((a[:, 0] + a[:, 3])**2 + (a[:, 1] - a[:, 2])**2)
+        Q = np.sqrt((a[:, 0] - a[:, 3])**2 + (a[:, 1] + a[:, 2])**2)
+        Aplus = P + Q 
+        Across = P - Q 
+        extrinsic_parameters["psi"] = 0.5 * np.arctan2(Aplus*a[:, 3] - Across*a[:, 0], Aplus*a[:, 1] + Across*a[:, 2]) # (Nevent)
+        sgns2p = np.sign(np.sin(2. * extrinsic_parameters["psi"])) # (Nevent)
+        extrinsic_parameters["reference_phase"] = -0.5*np.arctan2((Aplus*a[:, 3] - Across*a[:, 0]) * sgns2p, (Aplus*a[:, 2] + Across*a[:, 1]) * sgns2p) # (Nevent)
+        extrinsic_parameters["psi"][extrinsic_parameters["psi"]<0.] += PI 
+        extrinsic_parameters["reference_phase"][extrinsic_parameters["reference_phase"]<0.] += PI 
+        
+        if a.shape[0] == 1:
+            extrinsic_parameters_out = dict() 
+            for k, v in extrinsic_parameters.items():
+                extrinsic_parameters_out[k] = float(v[0])
+            return extrinsic_parameters_out
+        else:              
+            return extrinsic_parameters
+    
+    @staticmethod
+    def IntParamDict2ParamArr(param_dict):
+        return np.array([
+            np.log10(param_dict['chirp_mass']),
+            param_dict['mass_ratio'],
+            param_dict['spin_1z'],
+            param_dict['spin_2z'],
+            param_dict['reference_time'],
+            param_dict['longitude'],
+            np.sin(param_dict['latitude']),
+        ]) # (Nparams, Nevent)
+
+    @staticmethod
+    def IntParamArr2ParamDict(params):
+        p = dict()
+        p['chirp_mass'] = np.power(10., params[0])
+        p['mass_ratio'] = params[1]
+        p['spin_1z'] = params[2]
+        p['spin_2z'] = params[3]
+        p['reference_time'] = params[4]
+        p['longitude'] = params[5]
+        p['latitude'] = np.arcsin(params[6])
+        return p 
+    
 
 def DetectorBasisInSSB(orbit_time_SI, orbit):
     n21 = orbit.ArmVectorfunctions()["21"](orbit_time_SI)
@@ -918,6 +1247,18 @@ def get_reflected_parameter_dict(searched_params, orbit):
     psi_det = PI - psi_det # reflect psi 
     searched_ref_params = copy.deepcopy(searched_params)
     searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["coalescence_time"]*DAY, orbit)
+    searched_ref_params["inclination"] = PI - searched_params["inclination"] # reflect inclination 
+    return searched_ref_params
+
+def get_reflected_parameter_dict_Fref(searched_params, orbit):
+    lon_ssb = searched_params["longitude"]
+    lat_ssb = searched_params["latitude"]
+    psi_ssb = searched_params["psi"]
+    lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, searched_params["reference_time"]*DAY, orbit)
+    lat_det = -lat_det # reflect latitutde 
+    psi_det = PI - psi_det # reflect psi 
+    searched_ref_params = copy.deepcopy(searched_params)
+    searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["reference_time"]*DAY, orbit)
     searched_ref_params["inclination"] = PI - searched_params["inclination"] # reflect inclination 
     return searched_ref_params
 
