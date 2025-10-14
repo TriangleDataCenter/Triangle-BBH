@@ -486,5 +486,7 @@ class BBHxWaveformGeneratorZeroPhic(BBHxWaveformGenerator):
             amps_out[m] = amps[:, i]
             phas_out[m] = phase[:, i]
             tfs_out[m] = tf[:, i]
+            
+        self.fcoal = fcoal 
 
         return fgrids, amps_out, phas_out, tfs_out 
