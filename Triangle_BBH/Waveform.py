@@ -429,7 +429,62 @@ class BBHxWaveformGenerator():
             phas_out[m] = phase[:, i]
             tfs_out[m] = tf[:, i]
 
-        return fgrids, amps_out, phas_out, tfs_out # 
+        return fgrids, amps_out, phas_out, tfs_out 
     
 
+class BBHxWaveformGeneratorZeroPhic(BBHxWaveformGenerator):
+    def __init__(self, mode='full', use_gpu=False, modes=[(2, 2)]):
+        super().__init__(mode, use_gpu, modes)
+    
+    def __call__(self, parameters, freqs):
+        """ phi_c is set to 0, leaving the phase parameter to be set at the response stage """
+        Nevents = np.atleast_1d(parameters["chirp_mass"]).shape[0]
         
+        Nfreqs = freqs.shape[-1]
+        
+        # conversion of parameters
+        f_ref = np.zeros(Nevents) # f_ref = 0 means that f_ref is set to the frequency at coalescence 
+        m1 = m1_Mc_q(parameters["chirp_mass"], parameters["mass_ratio"])
+        m2 = m1 * parameters["mass_ratio"]
+        a1 = parameters["spin_1z"]
+        a2 = parameters["spin_2z"]
+        t_ref = parameters['coalescence_time'] * DAY # default tc 
+        phi_ref = np.zeros(Nevents) # phi_c is set to 0
+        dist = parameters["luminosity_distance"] * MPC 
+        
+        # calculate fgrids and waveforms
+        self.waveform(
+            m1,
+            m2,
+            a1,
+            a2,
+            dist,
+            phi_ref,
+            f_ref,
+            t_ref,
+            length=Nfreqs,
+            freqs=freqs,
+            modes=self.modes,
+        )
+
+        fgrids = self.waveform.freqs_shaped  # shape (Nevents, Nfreqs)
+        amps = self.waveform.amp  # shape (Nevents, Nmodes, Nfreqs)
+        phase = self.waveform.phase  # shape (Nevents, Nmodes, Nfreqs) 
+        tf = self.waveform.tf  # shape (Nevents, Nmodes, Nfreqs)
+        
+        # phase correction: phi_c = 0 NOTE: 22 should be the 1st mode in self.modes 
+        fcoal_idx = self.xp.argmax(amps[:, 0, :] * fgrids ** 2, axis=1) # (Nevents, Nfreqs) -> (Nevents)
+        fcoal = fgrids[np.arange(Nevents), fcoal_idx] # (Nevents)
+        phase_correction = TWOPI * fcoal * parameters["coalescence_time"] * DAY # (Nevents)
+        phase = phase - phase_correction[:, self.xp.newaxis, self.xp.newaxis] # (Nevents, Nmodes, Nfreqs)
+     
+        # save waveforms as dicts 
+        amps_out = {}
+        phas_out = {}
+        tfs_out = {}
+        for i, m in enumerate(self.modes):
+            amps_out[m] = amps[:, i]
+            phas_out[m] = phase[:, i]
+            tfs_out[m] = tf[:, i]
+
+        return fgrids, amps_out, phas_out, tfs_out 
