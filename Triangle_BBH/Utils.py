@@ -511,8 +511,10 @@ class Fstatistics(Likelihood):
         'longitude',
         'latitude'
         ]
-    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False):
-        super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu)
+    # def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu=False):
+    #     super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, use_gpu)
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
+        super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform, use_gpu, verbose)
         self.SUM = self.xp.sum 
         self.CONJ = self.xp.conjugate
         self.RE = self.xp.real
