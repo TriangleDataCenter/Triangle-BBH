@@ -436,6 +436,7 @@ class FDTDIResponseGenerator():
         tc_at_constellation=False, # whether tc is the coalescence time at constellation center (True) or SSB (False)
         TDIGeneration='2nd',
         optimal_combination=True,
+        drop_T=False, 
         interpolation_method='cubic',
         output_by_mode=False, 
         ):
@@ -551,7 +552,10 @@ class FDTDIResponseGenerator():
         
         if optimal_combination:
             A, E, T = self.AETfromXYZ(X, Y, Z)
-            results = np.array([A, E, T]) 
+            if drop_T: 
+                results = np.array([A, E]) 
+            else: 
+                results = np.array([A, E, T]) 
         else:
             results = np.array([X, Y, Z])
         
@@ -605,6 +609,7 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         tref_at_constellation=False, # whether tc is the coalescence time at constellation center (True) or SSB (False)
         TDIGeneration='2nd',
         optimal_combination=True,
+        drop_T=False, 
         interpolation_method='cubic',
         output_by_mode=False, 
         ):
@@ -719,7 +724,10 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         
         if optimal_combination:
             A, E, T = self.AETfromXYZ(X, Y, Z)
-            results = np.array([A, E, T]) 
+            if drop_T:
+                results = np.array([A, E]) 
+            else: 
+                results = np.array([A, E, T]) 
         else:
             results = np.array([X, Y, Z])
         
@@ -1165,6 +1173,7 @@ class BBHxFDTDIResponseGenerator():
         tc_at_constellation=False, 
         TDIGeneration='2nd',
         optimal_combination=True,
+        drop_T = False, 
         output_by_mode=False, 
         interpolation=False, 
         interpolate_points=1024, 
@@ -1340,7 +1349,10 @@ class BBHxFDTDIResponseGenerator():
         
         if optimal_combination:
             A, E, T = self.AETfromXYZ(X, Y, Z)
-            results = self.xp.array([A, E, T]) 
+            if drop_T:
+                results = self.xp.array([A, E]) 
+            else: 
+                results = self.xp.array([A, E, T]) 
         else:
             results = self.xp.array([X, Y, Z])
         
