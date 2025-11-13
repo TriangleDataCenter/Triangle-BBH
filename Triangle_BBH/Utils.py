@@ -294,10 +294,16 @@ class Likelihood:
         
         # sum all the coefficients in sparce grids  
         self.Nbin = num_het_frequency - 1 
-        self.B0 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
-        self.B1 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
-        self.A0 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
-        self.A1 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
+        if self.response_kwargs["drop_T"]: 
+            self.B0 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
+            self.B1 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
+            self.A0 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
+            self.A1 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
+        else:
+            self.B0 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
+            self.B1 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
+            self.A0 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
+            self.A1 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
         for ibin in self.xp.unique(group_idx): # loop over the left idx of sparce grids 
             inbin_idx = group_idx == ibin 
             self.B0[ibin] = self.xp.sum(B0_pre[inbin_idx], axis=0) # (3, 3)
