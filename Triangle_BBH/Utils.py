@@ -1258,15 +1258,21 @@ def get_reflected_parameter_dict(searched_params, orbit):
     searched_ref_params["inclination"] = PI - searched_params["inclination"] # reflect inclination 
     return searched_ref_params
 
-def get_reflected_parameter_dict_Fref(searched_params, orbit):
+def get_reflected_parameter_dict_Fref(searched_params, orbit, tc=None):
     lon_ssb = searched_params["longitude"]
     lat_ssb = searched_params["latitude"]
     psi_ssb = searched_params["psi"]
-    lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, searched_params["reference_time"]*DAY, orbit)
+    if tc is None:
+        lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, searched_params["reference_time"]*DAY, orbit)
+    else: 
+        lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, tc*DAY, orbit)
     lat_det = -lat_det # reflect latitutde 
     psi_det = PI - psi_det # reflect psi 
     searched_ref_params = copy.deepcopy(searched_params)
-    searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["reference_time"]*DAY, orbit)
+    if tc is None: 
+        searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["reference_time"]*DAY, orbit)
+    else: 
+        searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, tc*DAY, orbit)
     searched_ref_params["inclination"] = PI - searched_params["inclination"] # reflect inclination 
     return searched_ref_params
 
