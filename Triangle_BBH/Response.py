@@ -459,8 +459,8 @@ class FDTDIResponseGenerator():
         k = self.WaveVector(parameters=parameter_dict) 
         
         # convert the coalescence time from constellaton center to SSB
+        tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
         if tc_at_constellation:
-            tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
             parameter_dict['coalescence_time'] += -tc_delay / DAY # (Nevent)
             # print("delayed tc =", tc_delay)
             # print("converted tc =", parameter_dict["coalescence_time"])
@@ -541,14 +541,14 @@ class FDTDIResponseGenerator():
                     X += Xamp * np.exp(1.j * phase)
                     Y += Yamp * np.exp(1.j * phase)
                     Z += Zamp * np.exp(1.j * phase)
-        if Nevents == 1: 
-            X = np.conjugate(X[0])
-            Y = np.conjugate(Y[0])
-            Z = np.conjugate(Z[0])
-        else:
-            X = np.conjugate(X)
-            Y = np.conjugate(Y)
-            Z = np.conjugate(Z)
+        # if Nevents == 1: 
+        #     X = np.conjugate(X[0])
+        #     Y = np.conjugate(Y[0])
+        #     Z = np.conjugate(Z[0])
+        # else:
+        #     X = np.conjugate(X)
+        #     Y = np.conjugate(Y)
+        #     Z = np.conjugate(Z)
         
         if optimal_combination:
             A, E, T = self.AETfromXYZ(X, Y, Z)
@@ -558,8 +558,17 @@ class FDTDIResponseGenerator():
                 results = np.array([A, E, T]) 
         else:
             results = np.array([X, Y, Z])
+            
+        results = np.conjugate(results) # (Nchannels, Nevents, Nfreqs)
+        
+        if tc_at_constellation: 
+            results *= np.exp(1.j * TWOPI * self.waveform.fref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
+        
+        if Nevents == 1:
+            results = results[:, 0, :] # (Nchannels, Nfreqs)
         
         results[np.abs(results)<1e-25]=0.
+        
         return results 
             
     def AETfromXYZ(self, X, Y, Z):
