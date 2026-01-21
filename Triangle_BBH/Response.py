@@ -561,6 +561,7 @@ class FDTDIResponseGenerator():
             
         results = np.conjugate(results) # (Nchannels, Nevents, Nfreqs)
         
+        # restore the expected symmetry in TDI response
         if tc_at_constellation: 
             results *= np.exp(1.j * TWOPI * self.waveform.fref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
         
@@ -736,6 +737,7 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         # take complex conjugate to convert to usual FT convention
         results = np.conjugate(results) # (Nchannels, Nevents, Nfreqs)
         
+        # restore the expected symmetry in TDI response
         if tref_at_constellation:
             results *= np.exp(1.j * TWOPI * fref * tref_delay[:, np.newaxis]) # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
         
