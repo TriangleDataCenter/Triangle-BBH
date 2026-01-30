@@ -237,11 +237,11 @@ class WaveformGenerator():
         dphase_22_ref = (phase_22_ref_1_right - phase_22_ref_1_left) / (f_ref_1_right - f_ref_1_left) # (Nevents)
         
         # ensure Phi = 0 at merger frequency 
-        # phase_correct1 = (fgrids - f_ref[:, np.newaxis]) * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] # tc correction (Nevents, Nfreqs)
+        phase_correct1 = (fgrids - f_ref[:, np.newaxis]) * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] # tc correction (Nevents, Nfreqs)
         
         # ensure symmetry in response waveform 
-        phase_correct1 = fgrids * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] 
-        phase_correct1 += f_ref[:, np.newaxis] * dphase_22_ref[:, np.newaxis] 
+        # phase_correct1 = fgrids * (-dphase_22_ref + TWOPI * parameters_in['coalescence_time'] * DAY)[:, np.newaxis] 
+        # phase_correct1 += f_ref[:, np.newaxis] * dphase_22_ref[:, np.newaxis] 
         
         for k, v in phas_out.items():
             phase_correct2 = -k[1] * 0.5 * phase_22_ref # correct phi_ref
@@ -317,11 +317,11 @@ class WaveformGeneratorFRef(WaveformGenerator):
         dphase_22_cut = (phas_out[(2,2)][:, -1] - phas_out[(2,2)][:, -2]) / FSTEP # phase derivative (Nevents) 
         
         # ensure Phi=0 at fref 
-        # phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs+2) 
+        phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs+2) 
         
         # ensure symmetry in the response waveform 
-        phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * fgrids # (Nevents, Nfreqs+2) 
-        phase_mode_correction1 += dphase_22_cut[:, np.newaxis] * self.fcutarr[:, np.newaxis] # (Nevents, Nfreqs+2) 
+        # phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * fgrids # (Nevents, Nfreqs+2) 
+        # phase_mode_correction1 += dphase_22_cut[:, np.newaxis] * self.fcutarr[:, np.newaxis] # (Nevents, Nfreqs+2) 
         
         phase_22_cut = phas_out[(2,2)][:, -1] # (Nevents)
         for k, v in phas_out.items(): 
