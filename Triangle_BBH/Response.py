@@ -563,7 +563,7 @@ class FDTDIResponseGenerator():
         
         # ensure the expected symmetry in TDI response
         if tc_at_constellation: 
-            results *= np.exp(1.j * TWOPI * self.waveform.fref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
+            results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
         
         if Nevents == 1:
             results = results[:, 0, :] # (Nchannels, Nfreqs)
