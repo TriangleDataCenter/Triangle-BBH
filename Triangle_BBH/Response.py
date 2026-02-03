@@ -541,14 +541,6 @@ class FDTDIResponseGenerator():
                     X += Xamp * np.exp(1.j * phase)
                     Y += Yamp * np.exp(1.j * phase)
                     Z += Zamp * np.exp(1.j * phase)
-        # if Nevents == 1: 
-        #     X = np.conjugate(X[0])
-        #     Y = np.conjugate(Y[0])
-        #     Z = np.conjugate(Z[0])
-        # else:
-        #     X = np.conjugate(X)
-        #     Y = np.conjugate(Y)
-        #     Z = np.conjugate(Z)
         
         if optimal_combination:
             A, E, T = self.AETfromXYZ(X, Y, Z)
@@ -561,12 +553,20 @@ class FDTDIResponseGenerator():
             
         results = np.conjugate(results) # (Nchannels, Nevents, Nfreqs)
         
-        # ensure the expected symmetry in TDI response
-        if tc_at_constellation: 
-            results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
-        
-        if Nevents == 1:
-            results = results[:, 0, :] # (Nchannels, Nfreqs)
+        if output_by_mode:
+            # ensure the expected symmetry in TDI response
+            if tc_at_constellation: 
+                results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nmodes, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nmodes, Nevents, Nfreqs)
+            
+            if Nevents == 1:
+                results = results[:, :, 0, :] # (Nchannels, Nmodes, Nfreqs)
+        else:
+            # ensure the expected symmetry in TDI response
+            if tc_at_constellation: 
+                results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
+            
+            if Nevents == 1:
+                results = results[:, 0, :] # (Nchannels, Nfreqs)
         
         results[np.abs(results)<1e-25]=0.
         
@@ -736,14 +736,23 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         
         # take complex conjugate to convert to usual FT convention
         results = np.conjugate(results) # (Nchannels, Nevents, Nfreqs)
-        
-        # ensure the expected symmetry in TDI response
-        if tref_at_constellation:
-            results *= np.exp(1.j * TWOPI * fref * tref_delay[:, np.newaxis]) # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
-        
-        # squeeze if only one event
-        if Nevents == 1: 
-            results = results[:, 0, :] # (Nchannels, Nevents, Nfreqs) -> (Nchannels, Nfreqs)
+
+        if output_by_mode:
+            # ensure the expected symmetry in TDI response
+            if tref_at_constellation:
+                results *= np.exp(1.j * TWOPI * fref * tref_delay[:, np.newaxis]) # (Nchannels, Nmodes, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nmodes, Nevents, Nfreqs)
+            
+            # squeeze if only one event
+            if Nevents == 1: 
+                results = results[:, :, 0, :] # (Nchannels, Nmodes, Nevents, Nfreqs) -> (Nchannels, Nmodes, Nfreqs)
+        else:         
+            # ensure the expected symmetry in TDI response
+            if tref_at_constellation:
+                results *= np.exp(1.j * TWOPI * fref * tref_delay[:, np.newaxis]) # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
+            
+            # squeeze if only one event
+            if Nevents == 1: 
+                results = results[:, 0, :] # (Nchannels, Nevents, Nfreqs) -> (Nchannels, Nfreqs)
         
         # clean tiny values to avoid error in likelihood calculation
         results[np.abs(results)<1e-25]=0.

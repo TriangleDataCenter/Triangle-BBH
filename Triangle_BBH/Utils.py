@@ -294,7 +294,7 @@ class Likelihood:
         
         # sum all the coefficients in sparce grids  
         self.Nbin = num_het_frequency - 1 
-        if self.response_kwargs["drop_T"]: 
+        if self.response_kwargs.get("drop_T", False): 
             self.B0 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
             self.B1 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
             self.A0 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
