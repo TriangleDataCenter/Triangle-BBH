@@ -498,6 +498,196 @@ class Likelihood:
         tmp2 = self.xp.matmul(tmp1, data_expanded_transposed2) # (Nf, 1, 1)
         return self.xp.sum(tmp2)
     
+    
+class HMLikelihood(Likelihood):
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
+        super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform, use_gpu, verbose)
+        self.NX = self.xp.newaxis
+        self.TRANS = self.xp.transpose
+        
+        # force output by mode 
+        self.response_kwargs["output_by_mode"] = True 
+        
+    def prepare_het_log_like(self, base_parameters, num_het_frequency=128):
+        """  
+            base_parameters: dictionary of parameters 
+        """
+        self.h0 = self.response_generator.Response(
+            # parameters=self.ParamArr2ParamDict(base_parameters),
+            parameters=base_parameters, 
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nmodes, Nf)
+        
+        self.Nchannels = len(self.h0)
+        self.Nmodes = len(self.h0[0])
+        
+        # create sparce grid of frequencies (1st try)
+        FMIN, FMAX = self.xp.min(self.frequency) * 0.999999999999, self.xp.max(self.frequency) * 1.000000000001
+        self.het_frequency = self.xp.logspace(self.xp.log10(FMIN), self.xp.log10(FMAX), num_het_frequency) # N_het_f
+        
+        # calculate base waveform at the sparce grid (1st try)
+        self.het_h0 = self.response_generator.Response(
+            # parameters=self.ParamArr2ParamDict(base_parameters),
+            parameters=base_parameters, 
+            freqs=self.het_frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nmodes, N_het_f)
+        
+        # refine the sparse grid to ensure no zero waveforms 
+        valid_idx = self.xp.where(self.xp.abs(self.het_h0[0][0]) > 1e-25)[0]
+        tmpf = self.het_frequency[valid_idx]
+        
+        # create sparce grid of frequencies (final)
+        self.het_frequency = self.xp.logspace(self.xp.log10(tmpf[0]), self.xp.log10(tmpf[-1]), num_het_frequency) # N_het_f
+        
+        # calculate base waveform at the sparce grid (final)
+        self.het_h0 = self.response_generator.Response(
+            # parameters=self.ParamArr2ParamDict(base_parameters),
+            parameters=base_parameters, 
+            freqs=self.het_frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nmodes, N_het_f)
+        
+        # avoid singularity when calculating r = h / h0
+        self.het_h0[self.het_h0==0.] = 1e-25 
+        
+        # confine the frequency and data to be within the boundaries of sparce grid 
+        inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
+        self.dense_frequency = self.frequency[inband_idx] # (Nf)
+        self.dense_data = self.data[:, inband_idx] # (Nchannels, Nf)
+        self.dense_h0 = self.h0[:, :, inband_idx] # (Nchannels, Nmodes, Nf)
+        self.dense_invserse_covariance_matrix = self.invserse_covariance_matrix[inband_idx] # (Nf, Nchannels, Nchannels)
+        self.Nfreqs_dense = len(self.dense_frequency)
+        
+        # group the dense frequencies with the sparce frequency grid, return the left sparse idx of each dense frequency
+        group_idx = self.xp.searchsorted(self.het_frequency, self.dense_frequency, "right") - 1 # (Nf)
+        
+        # calculate the coefficients of heterodyned likelihood 
+        # 1) the (h|h) term 
+        A_dense = self.xp.zeros((self.Nmodes, self.Nmodes, self.Nchannels, self.Nchannels, self.Nfreqs_dense), dtype=self.xp.complex128)
+        B_dense = self.xp.zeros((self.Nmodes, self.Nmodes, self.Nchannels, self.Nchannels, self.Nfreqs_dense), dtype=self.xp.complex128)
+        C_dense = self.xp.zeros((self.Nmodes, self.Nmodes, self.Nchannels, self.Nchannels, self.Nfreqs_dense), dtype=self.xp.complex128)
+        for lmode in range(self.Nmodes):
+            for lpmode in range(self.Nmodes):
+                A_dense[lmode][lpmode] = self.inner_product_frequency_array(h1=self.dense_frequency*self.dense_h0[:, lpmode], h2=self.dense_frequency*self.dense_h0[:, lmode], inv_cov=self.dense_invserse_covariance_matrix) # (Nchannels, Nchannels, Nf)
+                B_dense[lmode][lpmode] = self.inner_product_frequency_array(h1=self.dense_frequency*self.dense_h0[:, lpmode], h2=self.dense_h0[:, lmode], inv_cov=self.dense_invserse_covariance_matrix) # (Nchannels, Nchannels, Nf)
+                C_dense[lmode][lpmode] = self.inner_product_frequency_array(h1=self.dense_h0[:, lpmode], h2=self.dense_h0[:, lmode], inv_cov=self.dense_invserse_covariance_matrix) # (Nchannels, Nchannels, Nf)
+        self.Nbin = num_het_frequency - 1 
+        self.A_sparse = self.xp.zeros((self.Nmodes, self.Nmodes, self.Nchannels, self.Nchannels, self.Nbin), dtype=self.xp.complex128)
+        self.B_sparse = self.xp.zeros((self.Nmodes, self.Nmodes, self.Nchannels, self.Nchannels, self.Nbin), dtype=self.xp.complex128)
+        self.C_sparse = self.xp.zeros((self.Nmodes, self.Nmodes, self.Nchannels, self.Nchannels, self.Nbin), dtype=self.xp.complex128)
+        for ibin in range(self.Nbin): # ibin for left index of bin 
+            group_idx_in_bin = self.xp.where(group_idx==ibin)[0]
+            self.A_sparse[:, :, :, :, ibin] = self.xp.sum(A_dense[:, :, :, :, group_idx_in_bin], axis=4) # (Nmodes, Nmodes, Nchannels, Nchannels)
+            self.B_sparse[:, :, :, :, ibin] = self.xp.sum(B_dense[:, :, :, :, group_idx_in_bin], axis=4)
+            self.C_sparse[:, :, :, :, ibin] = self.xp.sum(C_dense[:, :, :, :, group_idx_in_bin], axis=4)
+        # 2) the (d|h) term 
+        D_dense = self.xp.zeros((self.Nmodes, self.Nchannels, self.Nchannels, self.Nfreqs_dense), dtype=self.xp.complex128)
+        E_dense = self.xp.zeros((self.Nmodes, self.Nchannels, self.Nchannels, self.Nfreqs_dense), dtype=self.xp.complex128)
+        for lmode in range(self.Nmodes): 
+            D_dense[lmode] = self.inner_product_frequency_array(h1=self.dense_frequency*self.dense_data, h2=self.dense_h0[:, lmode], inv_cov=self.dense_invserse_covariance_matrix) # (Nchannels, Nchannels, Nf)
+            E_dense[lmode] = self.inner_product_frequency_array(h1=self.dense_data, h2=self.dense_h0[:, lmode], inv_cov=self.dense_invserse_covariance_matrix) # (Nchannels, Nchannels, Nf)
+        self.D_sparse = self.xp.zeros((self.Nmodes, self.Nchannels, self.Nchannels, self.Nbin), dtype=self.xp.complex128)
+        self.E_sparse = self.xp.zeros((self.Nmodes, self.Nchannels, self.Nchannels, self.Nbin), dtype=self.xp.complex128)
+        for ibin in range(self.Nbin): 
+            group_idx_in_bin = self.xp.where(group_idx==ibin)[0]
+            self.D_sparse[:, :, :, ibin] = self.xp.sum(D_dense[:, :, :, group_idx_in_bin], axis=3) # (Nmodes, Nchannels, Nchannels)
+            self.E_sparse[:, :, :, ibin] = self.xp.sum(E_dense[:, :, :, group_idx_in_bin], axis=3)
+            
+        self.het_df = self.het_frequency[1:] - self.het_frequency[:-1] # Nbins = N_het_f - 1
+        self.het_prepare_flag = True 
+        
+    def het_log_like(self, parameter_array):
+        """ 
+        Parameters: 
+            parameter_array: parameters given as an array, the order is: ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
+        Returns: 
+            heterodyned loglike (scalar)
+        """
+        if not self.het_prepare_flag: 
+            raise NotImplementedError("Heterodyne not prepared.")
+        
+        # calculate sparce template 
+        het_h = self.response_generator.Response(
+            parameters=self.ParamArr2ParamDict(parameter_array),
+            freqs=self.het_frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nmodes, N_het_f)
+        
+        # calculate heterodyne 
+        het_r = self.xp.nan_to_num(het_h / self.het_h0, nan=0.) # (Nchannels, Nmodes, N_het_f)
+        het_r_right = het_r[:, :, 1:] # (Nchannels, Nmodes, Nbins)
+        het_r_left = het_r[:, :, :-1] # (Nchannels, Nmodes, Nbins)
+        alpha = self.TRANS((het_r_right - het_r_left) / self.het_df, axes=(1, 0, 2)) # (Nchannels, Nmodes, Nbins) -> (Nmodes, Nchannels, Nbins)
+        alpha_star = self.xp.conjugate(alpha)
+        beta = self.TRANS((het_r_left * self.het_frequency[1:] - het_r_right * self.het_frequency[:-1]) / self.het_df, axes=(1, 0, 2)) # (Nchannels, Nmodes, Nbins) -> (Nmodes, Nchannels, Nbins)
+        beta_star = self.xp.conjugate(beta)
+        
+        # calculate likelihood 
+        # 1) (h|h)
+        hh_term = alpha[:, self.NX, :, self.NX] * alpha_star[self.NX, :, self.NX, :] * self.A_sparse # (Nmodes, Nmodes, Nchannels, Nchannels, Nbins)
+        hh_term += (alpha[:, self.NX, :, self.NX] * beta_star[self.NX, :, self.NX, :] + beta[:, self.NX, :, self.NX] * alpha_star[self.NX, :, self.NX, :]) * self.B_sparse # (Nmodes, Nmodes, Nchannels, Nchannels, Nbins)
+        hh_term += beta[:, self.NX, :, self.NX] * beta_star[self.NX, :, self.NX, :] * self.C_sparse # (Nmodes, Nmodes, Nchannels, Nchannels, Nbins)
+        hh_term = self.xp.real(self.xp.sum(hh_term)) # scalar
+        # 2) (d|h)
+        dh_term = self.xp.real(self.xp.sum(alpha[:, :, self.NX] * self.D_sparse + beta[:, :, self.NX] * self.E_sparse)) # scalar 
+        
+        return dh_term - 0.5 * hh_term
+    
+    def het_log_like_vectorized(self, parameter_array):
+        """ 
+        Parameters: 
+            parameter_array: parameters given as a (Nparams, Nevents) array, the order is: ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
+        Returns: 
+            heterodyned loglike (scalar)
+        """
+        if not self.het_prepare_flag: 
+            raise NotImplementedError("Heterodyne not prepared.")
+        
+        # calculate sparce template 
+        het_h = self.TRANS(self.response_generator.Response(
+            parameters=self.ParamArr2ParamDict(parameter_array),
+            freqs=self.het_frequency,
+            **self.response_kwargs,
+        ), axes=(2, 0, 1, 3)) # (Nchannels, Nmodes, Nevents, N_het_f) -> (Nevents, Nchannels, Nmodes, N_het_f)
+        
+        # calculate heterodyne 
+        het_r = self.xp.nan_to_num(het_h / self.het_h0, nan=0.) # (Nevents, Nchannels, Nmodes, N_het_f)
+        het_r_right = het_r[:, :, :, 1:] # (Nevents, Nchannels, Nmodes, Nbins)
+        het_r_left = het_r[:, :, :, :-1] # (Nevents, Nchannels, Nmodes, Nbins)
+        alpha = self.TRANS((het_r_right - het_r_left) / self.het_df, axes=(0, 2, 1, 3)) # (Nevents, Nchannels, Nmodes, Nbins) -> (Nevents, Nmodes, Nchannels, Nbins)
+        alpha_star = self.xp.conjugate(alpha)
+        beta = self.TRANS((het_r_left * self.het_frequency[1:] - het_r_right * self.het_frequency[:-1]) / self.het_df, axes=(0, 2, 1, 3)) # (Nevents, Nchannels, Nmodes, Nbins) -> (Nevents, Nmodes, Nchannels, Nbins)
+        beta_star = self.xp.conjugate(beta)
+        
+        # calculate likelihood 
+        # 1) (h|h)
+        hh_term = alpha[:, :, self.NX, :, self.NX, :] * alpha_star[:, self.NX, :, self.NX, :, :] * self.A_sparse # (Nevents, Nmodes, Nmodes, Nchannels, Nchannels, Nbins)
+        hh_term += (alpha[:, :, self.NX, :, self.NX, :] * beta_star[:, self.NX, :, self.NX, :, :] + beta[:, :, self.NX, :, self.NX, :] * alpha_star[:, self.NX, :, self.NX, :, :]) * self.B_sparse # (Nevents, Nmodes, Nmodes, Nchannels, Nchannels, Nbins)
+        hh_term += beta[:, :, self.NX, :, self.NX, :] * beta_star[:, self.NX, :, self.NX, :, :] * self.C_sparse # (Nevents, Nmodes, Nmodes, Nchannels, Nchannels, Nbins)
+        hh_term = self.xp.real(self.xp.sum(hh_term, axis=(1, 2, 3, 4, 5))) # (Nevents)
+        # 2) (d|h)
+        dh_term = self.xp.real(self.xp.sum(alpha[:, :, :, self.NX, :] * self.D_sparse + beta[:, :, :, self.NX, :] * self.E_sparse, axis=(1, 2, 3, 4))) # (Nevents)
+        
+        return dh_term - 0.5 * hh_term # (Nevents)
+        
+    def inner_product_frequency_array(self, h1, h2, inv_cov): 
+        """  
+        Parameters: 
+            h1, h2: fourier array of shape (Nchannels, Nf,)
+            inv_cov: inverse covariance matrix of shape (Nf, Nchannels, Nchannels)
+        Returns: 
+            h1^\dagger C^-1 h2, neither summed over channels nor frequencies, the shape is (Nchannels, Nchannels, Nf)
+        """
+        # tmp1 = self.xp.sum(self.TRANS(self.xp.conjugate(h1))[:, :, self.NX] * inv_cov, axis=1) # (Nf, Nchannels) 
+        # tmp2 = self.xp.sum(tmp1 * self.TRANS(h2), axis=1) # (Nf,)
+        # return tmp2
+        tmp1 = self.TRANS(self.xp.conjugate(h1))[:, :, self.NX] * inv_cov # (Nf, Nchannels, Nchannels) 
+        tmp2 = tmp1 * self.TRANS(h2)[:, self.NX, :] # (Nf, Nchannels, Nchannels)
+        return self.TRANS(tmp2, axes=(1, 2, 0)) # (Nchannels, Nchannels, Nf)
+        
+    
 
 import copy 
 
