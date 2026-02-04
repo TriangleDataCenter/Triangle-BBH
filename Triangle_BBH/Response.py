@@ -1357,19 +1357,6 @@ class BBHxFDTDIResponseGenerator():
                     X += Xamp_int * self.xp.exp(1.j * phase_int)
                     Y += Yamp_int * self.xp.exp(1.j * phase_int)
                     Z += Zamp_int * self.xp.exp(1.j * phase_int)
-        if Nevents == 1:
-            if output_by_mode: 
-                X = self.xp.conjugate(X[:, 0]) # (Nmode, Nf)
-                Y = self.xp.conjugate(Y[:, 0])
-                Z = self.xp.conjugate(Z[:, 0])
-            else:
-                X = self.xp.conjugate(X[0]) # (Nf)
-                Y = self.xp.conjugate(Y[0])
-                Z = self.xp.conjugate(Z[0])
-        else:
-            X = self.xp.conjugate(X)
-            Y = self.xp.conjugate(Y)
-            Z = self.xp.conjugate(Z)
         
         if optimal_combination:
             A, E, T = self.AETfromXYZ(X, Y, Z)
@@ -1379,8 +1366,17 @@ class BBHxFDTDIResponseGenerator():
                 results = self.xp.array([A, E, T]) 
         else:
             results = self.xp.array([X, Y, Z])
+            
+        # convert to conventional rule of Fourier transform 
+        results = self.xp.conjugate(results)
         
-        results[self.xp.abs(results)<1e-23]=0.
+        # if there is only one event 
+        if output_by_mode:
+            results = results[:, :, 0] # (Nchannels, Nmodes, Nevents, Nfreqs) -> (Nchannels, Nmodes, Nfreqs)
+        else: 
+            results = results[:, 0] # (Nchannels, Nevents, Nfreqs) -> (Nchannels, Nfreqs)
+        
+        results[self.xp.abs(results)<1e-25]=0.
         return results 
         
     def AETfromXYZ(self, X, Y, Z):
