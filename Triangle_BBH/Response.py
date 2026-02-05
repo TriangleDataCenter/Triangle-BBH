@@ -1371,10 +1371,11 @@ class BBHxFDTDIResponseGenerator():
         results = self.xp.conjugate(results)
         
         # if there is only one event 
-        if output_by_mode:
-            results = results[:, :, 0] # (Nchannels, Nmodes, Nevents, Nfreqs) -> (Nchannels, Nmodes, Nfreqs)
-        else: 
-            results = results[:, 0] # (Nchannels, Nevents, Nfreqs) -> (Nchannels, Nfreqs)
+        if Nevents == 1:
+            if output_by_mode:
+                results = results[:, :, 0] # (Nchannels, Nmodes, Nevents, Nfreqs) -> (Nchannels, Nmodes, Nfreqs)
+            else: 
+                results = results[:, 0] # (Nchannels, Nevents, Nfreqs) -> (Nchannels, Nfreqs)
         
         results[self.xp.abs(results)<1e-25]=0.
         return results 

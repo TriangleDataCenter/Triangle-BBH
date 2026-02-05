@@ -672,7 +672,10 @@ class HMLikelihood(Likelihood):
         # 2) (d|h)
         dh_term = self.xp.real(self.xp.sum(alpha[:, :, :, self.NX, :] * self.D_sparse + beta[:, :, :, self.NX, :] * self.E_sparse, axis=(1, 2, 3, 4))) # (Nevents)
         
-        return dh_term - 0.5 * hh_term # (Nevents)
+        if self.use_gpu: 
+            return (dh_term - 0.5 * hh_term).get() # (Nevents)
+        else: 
+            return dh_term - 0.5 * hh_term # (Nevents)
         
     def inner_product_frequency_array(self, h1, h2, inv_cov): 
         """  
