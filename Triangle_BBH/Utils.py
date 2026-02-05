@@ -405,18 +405,20 @@ class Likelihood:
         Returns: 
             loglike marginalized over luminosity distance 
         """
-        p = dict()
-        p['chirp_mass'] = np.power(10., parameter_array[0])
-        p['mass_ratio'] = parameter_array[1]
-        p['spin_1z'] = parameter_array[2]
-        p['spin_2z'] = parameter_array[3]
-        p['coalescence_time'] = parameter_array[4]
-        p['coalescence_phase'] = parameter_array[5]
-        p['luminosity_distance'] = 1. 
-        p['inclination'] = np.arccos(parameter_array[6])
-        p['longitude'] = parameter_array[7]
-        p['latitude'] = np.arcsin(parameter_array[8])
-        p['psi'] = parameter_array[9] 
+        # p = dict()
+        # p['chirp_mass'] = np.power(10., parameter_array[0])
+        # p['mass_ratio'] = parameter_array[1]
+        # p['spin_1z'] = parameter_array[2]
+        # p['spin_2z'] = parameter_array[3]
+        # p['coalescence_time'] = parameter_array[4]
+        # p['coalescence_phase'] = parameter_array[5]
+        # p['luminosity_distance'] = 1. 
+        # p['inclination'] = np.arccos(parameter_array[6])
+        # p['longitude'] = parameter_array[7]
+        # p['latitude'] = np.arcsin(parameter_array[8])
+        # p['psi'] = parameter_array[9] 
+        full_parameter_array = np.array(list(parameter_array[:6])+[0.,]+list(parameter_array[6:]))
+        p = self.ParamArr2ParamDict(full_parameter_array)
 
         template = self.response_generator.Response(
             parameters=p,
