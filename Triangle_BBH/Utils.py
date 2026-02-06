@@ -1359,8 +1359,6 @@ class FstatisticsFref(Likelihood):
         return p 
     
 
-
-
 class HMFstatistics(Fstatistics):
     all_mode_factors = {
         "21": np.sqrt(5./PI)/4., 
@@ -1378,7 +1376,7 @@ class HMFstatistics(Fstatistics):
         if self.response_kwargs.get("modes", None) is None: 
             self.modes = [(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)] 
         else: 
-            self.modes = self.response_kwargs
+            self.modes = self.response_kwargs["modes"]
         self.Nmodes = len(self.modes)
         self.mode_factors = self.xp.array([self.all_mode_factors[str(mode[0])+str(mode[1])] for mode in self.modes])
 
@@ -1389,7 +1387,7 @@ class HMFstatistics(Fstatistics):
         else: 
             self.Nchannels = 3 
 
-    def calculate_Fstat_vectorized(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
+    def HM_calculate_Fstat(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
 
         Nevents = len(np.atleast_1d(intrinsic_parameters["chirp_mass"]))
 
@@ -1403,7 +1401,7 @@ class HMFstatistics(Fstatistics):
             parameters=full_parameters1,
             freqs=self.frequency,
             **self.response_kwargs,
-        ) # (Nchannels, Nmodes, Nevents, Nfreqs)
+        ) # (Nchannels, Nmodes, Nevents, Nfreqs) or (Nchannels, Nmodes, Nfreqs) if Nevents == 1
 
         full_parameters2 = copy.deepcopy(full_parameters1)
         full_parameters2["psi"] = np.ones(Nevents) * PI / 4. 
@@ -1412,11 +1410,12 @@ class HMFstatistics(Fstatistics):
             parameters=full_parameters2,
             freqs=self.frequency,
             **self.response_kwargs,
-        ) # (Nchannels, Nmodes, Nevents, Nfreqs)
+        ) # (Nchannels, Nmodes, Nevents, Nfreqs) or (Nchannels, Nmodes, Nfreqs) if Nevents == 1
 
         if Nevents == 1:
             temp1 = temp1[:, :, self.NX, :] # (Nchannels, Nmodes, 1, Nfreqs)
             temp2 = temp2[:, :, self.NX, :]
+        # print("template shape:", temp1.shape, temp2.shape)
 
         X1 = self.TRANS(temp1, axes=(2, 0, 1, 3)) # (Nevents, Nchannels, Nmodes, Nfreqs)
         X1 *= 1. / self.mode_factors[:, self.NX] # (Nevents, Nchannels, Nmodes, Nfreqs) / (Nmodes, 1) = (Nevents, Nchannels, Nmodes, Nfreqs)
@@ -1427,10 +1426,13 @@ class HMFstatistics(Fstatistics):
 
         Xvector = self.TRANS(self.xp.array([X1, X2, X3, X4]), axes=(1, 0, 3, 2, 4)) # (4, Nevents, Nchannels, Nmodes, Nfreqs) -> (Nevents, 4, Nmodes, Nchannels, Nfreqs)
         Xvector = Xvector.reshape(Nevents, 4*self.Nmodes, self.Nchannels, self.Nfreqs) # (Nevents, 4*Nmodes, Nchannels, Nfreqs)
+        # print("X vector shape:", Xvector.shape)
 
         data_expand = self.data[self.NX, self.NX, :, :] # (1, 1, Nchannels, Nfreqs)
         Nvector = self.HM_inner_product_vectorized(data_expand, Xvector) # (Nevents, 4*Nmodes)
         Mmatrix = self.HM_inner_product_matrix(Xvector, Xvector) # (Nevents, 4*Nmodes, 4*Nmodes)
+        # print("N vector shape:", Nvector.shape)
+        # print("M matrix shape:", Mmatrix.shape)
 
         invMmatrix = self.xp.linalg.inv(Mmatrix) # (Nevents, 4, 4)
         Nvector_col = Nvector[..., self.NX] # (Nevents, 4, 1)
@@ -1494,7 +1496,6 @@ class HMFstatistics(Fstatistics):
 
         inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(3, 4, 5)) # (Nevents, Nrows, Nrows)
         return self.RE(inners)
-    
 
 
     
