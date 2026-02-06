@@ -1359,6 +1359,146 @@ class FstatisticsFref(Likelihood):
         return p 
     
 
+
+
+class HMFstatistics(Fstatistics):
+    all_mode_factors = {
+        "21": np.sqrt(5./PI)/4., 
+        "22": np.sqrt(5./PI)/8., 
+        "33": -np.sqrt(21./PI) / 8. / np.sqrt(2.), 
+        "44": np.sqrt(7./PI) * 3. / 16., 
+        "32": -np.sqrt(7./PI) / 4., 
+        "43": np.sqrt(14./PI) * 3. / 16., 
+    }
+
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
+        super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform, use_gpu, verbose) 
+        self.response_kwargs = response_parameters.copy() 
+        self.response_kwargs["output_by_mode"] = True 
+        if self.response_kwargs.get("modes", None) is None: 
+            self.modes = [(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)] 
+        else: 
+            self.modes = self.response_kwargs
+        self.Nmodes = len(self.modes)
+        self.mode_factors = self.xp.array([self.all_mode_factors[str(mode[0])+str(mode[1])] for mode in self.modes])
+
+        self.Nfreqs = len(frequency)
+        
+        if self.response_kwargs.get("drop_T", False): 
+            self.Nchannels = 2 
+        else: 
+            self.Nchannels = 3 
+
+    def calculate_Fstat_vectorized(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
+
+        Nevents = len(np.atleast_1d(intrinsic_parameters["chirp_mass"]))
+
+        full_parameters1 = copy.deepcopy(intrinsic_parameters)
+        full_parameters1["luminosity_distance"] = np.ones(Nevents)
+        full_parameters1["coalescence_phase"] = np.zeros(Nevents)
+        full_parameters1["inclination"] = np.ones(Nevents) * PI / 2. 
+        full_parameters1["psi"] = np.zeros(Nevents)
+
+        temp1 = self.response_generator.Response(
+            parameters=full_parameters1,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nmodes, Nevents, Nfreqs)
+
+        full_parameters2 = copy.deepcopy(full_parameters1)
+        full_parameters2["psi"] = np.ones(Nevents) * PI / 4. 
+
+        temp2 = self.response_generator.Response(
+            parameters=full_parameters2,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nmodes, Nevents, Nfreqs)
+
+        if Nevents == 1:
+            temp1 = temp1[:, :, self.NX, :] # (Nchannels, Nmodes, 1, Nfreqs)
+            temp2 = temp2[:, :, self.NX, :]
+
+        X1 = self.TRANS(temp1, axes=(2, 0, 1, 3)) # (Nevents, Nchannels, Nmodes, Nfreqs)
+        X1 *= 1. / self.mode_factors[:, self.NX] # (Nevents, Nchannels, Nmodes, Nfreqs) / (Nmodes, 1) = (Nevents, Nchannels, Nmodes, Nfreqs)
+        X2 = 1.j * X1
+        X3 = self.TRANS(temp2, axes=(2, 0, 1, 3)) 
+        X3 *= 1. / self.mode_factors[:, self.NX]
+        X4 = 1.j * X3
+
+        Xvector = self.TRANS(self.xp.array([X1, X2, X3, X4]), axes=(1, 0, 3, 2, 4)) # (4, Nevents, Nchannels, Nmodes, Nfreqs) -> (Nevents, 4, Nmodes, Nchannels, Nfreqs)
+        Xvector = Xvector.reshape(Nevents, 4*self.Nmodes, self.Nchannels, self.Nfreqs) # (Nevents, 4*Nmodes, Nchannels, Nfreqs)
+
+        data_expand = self.data[self.NX, self.NX, :, :] # (1, 1, Nchannels, Nfreqs)
+        Nvector = self.HM_inner_product_vectorized(data_expand, Xvector) # (Nevents, 4*Nmodes)
+        Mmatrix = self.HM_inner_product_matrix(Xvector, Xvector) # (Nevents, 4*Nmodes, 4*Nmodes)
+
+        invMmatrix = self.xp.linalg.inv(Mmatrix) # (Nevents, 4, 4)
+        Nvector_col = Nvector[..., self.NX] # (Nevents, 4, 1)
+        NM = self.MATMUL(invMmatrix, Nvector_col) # (Nevents, 4, 1)
+        Nvector_row = Nvector[:, self.NX, :] # (Nevents, 1, 4)
+        NMN = self.SUM(self.MATMUL(Nvector_row, NM), axis=(1,2)) # (Nevents, 1, 1) -> (Nevents)
+
+        res = 0.5 * NMN # (Nevents) Fstat 0.5 * N^T M^{-1} N
+
+        if return_a:
+            res_a = NM.squeeze(axis=-1) # (Nevents, 4)
+            if self.use_gpu:
+                return res_a.get() # (Nevents, 4)
+            else: 
+                return res_a # (Nevents, 4)
+            
+        if return_recovered_wave: 
+            res_a = NM.squeeze(axis=-1) # (Nevents, 4)
+            res_wf = self.SUM(res_a[:, :, self.NX, self.NX] * Xvector, axis=1) # (Nevents, Nchannels, Nfreqs)
+            if Nevents == 1: 
+                return res_wf[0] # (Nchannels, Nfreqs)
+            else:
+                return self.TRANS(res_wf, (1, 0, 2)) # (Nchannels, Nevents, Nfreqs)
+
+        # else:
+        if self.use_gpu:
+            if Nevents == 1:
+                return res.get()[0]
+            else:
+                return res.get() # (Nevents)
+        else: 
+            if Nevents == 1: 
+                return res[0]
+            else: 
+                return res 
+
+    def HM_inner_product_vectorized(self, template_channels1, template_channels2):
+        """ 
+            template_channels1: shape (Nevent, Nrows, Nchannel, Nfreq)
+            template_channels2: shape (Nevent, Nrows, Nchannel, Nfreq)
+        """
+        residual1 = self.TRANS(template_channels1, (0, 1, 3, 2)) # (Nevents, Nrows, Nfreqs, Nchannels)
+        residual_dagger1 = self.CONJ(residual1[:, :, :, self.NX, :]) # (Nevents, Nrows, Nfreqs, 1, Nchannels), conjugate 
+
+        residual2 = self.TRANS(template_channels2, (0, 1, 3, 2)) # (Nevents, Nrows, Nfreqs, Nchannels)
+        residual2 = residual2[:, :, :, :, self.NX] # (Nevents, Nrows, Nfreqs, Nchannels, 1)
+
+        inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(2, 3, 4)) # (Nevents, Nrows, Nfreqs, 1, Nchannels) -> (Nevents, Nrows, Nfreqs, 1, 1) -> (Nevents, Nrows)
+        return self.RE(inners)
+    
+    def HM_inner_product_matrix(self, template_channels1, template_channels2):
+        """ 
+            template_channels1: shape (Nevent, Nrows, Nchannel, Nfreq)
+            template_channels2: shape (Nevent, Nrows, Nchannel, Nfreq)
+        """
+        residual1 = self.TRANS(template_channels1, (0, 1, 3, 2)) # (Nevents, Nrows, Nfreqs, Nchannels)
+        residual_dagger1 = self.CONJ(residual1[:, :, self.NX, :, self.NX, :]) # (Nevents, Nrows, 1, Nfreqs, 1, Nchannels), conjugate 
+
+        residual2 = self.TRANS(template_channels2, (0, 1, 3, 2)) # (Nevents, Nrows, Nfreqs, Nchannels)
+        residual2 = residual2[:, self.NX, :, :, :, self.NX] # (Nevents, 1, Nrows, Nfreqs, Nchannels, 1)
+
+        inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(3, 4, 5)) # (Nevents, Nrows, Nrows)
+        return self.RE(inners)
+    
+
+
+    
+
 def DetectorBasisInSSB(orbit_time_SI, orbit):
     n21 = orbit.ArmVectorfunctions()["21"](orbit_time_SI)
     n31 = orbit.ArmVectorfunctions()["31"](orbit_time_SI)
