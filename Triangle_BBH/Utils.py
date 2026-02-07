@@ -1395,9 +1395,11 @@ class HMFstatistics_4params(Fstatistics):
         if Fref_waveform: 
             self.IntParamArr2ParamDictConversion = self.IntParamArr2ParamDictFRef
             self.IntParamDict2ParamArrConversion = self.IntParamDict2ParamArrFRef
+            self.phase_name = "reference_phase"
         else: 
             self.IntParamArr2ParamDictConversion = self.IntParamArr2ParamDict
             self.IntParamDict2ParamArrConversion = self.IntParamDict2ParamArr
+            self.phase_name = "coalescence_phase"
 
     def HM_calculate_Fstat(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
 
@@ -1405,7 +1407,7 @@ class HMFstatistics_4params(Fstatistics):
 
         full_parameters1 = copy.deepcopy(intrinsic_parameters)
         full_parameters1["luminosity_distance"] = np.ones(Nevents)
-        full_parameters1["coalescence_phase"] = np.zeros(Nevents)
+        full_parameters1[self.phase_name] = np.zeros(Nevents)
         full_parameters1["inclination"] = np.ones(Nevents) * PI / 2. 
         full_parameters1["psi"] = np.zeros(Nevents)
 
@@ -1556,8 +1558,7 @@ class HMFstatistics_4params(Fstatistics):
         p['longitude'] = params[5]
         p['latitude'] = np.arcsin(params[6])
         return p
-    
-    
+
 class HMFstatistics_2params(Fstatistics):
     def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
         super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform, use_gpu, verbose) 
