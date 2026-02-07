@@ -1358,8 +1358,13 @@ class FstatisticsFref(Likelihood):
         p['latitude'] = np.arcsin(params[6])
         return p 
     
-
-class HMFstatistics(Fstatistics):
+    
+class HMFstatistics_4params(Fstatistics):
+    """  
+        For waveforms with higher-order modes, in principle only 2 parameters can be analytically marginalized with F-stat.
+        While, this less rigorous 4-dimensional reduction can be used to quickly determine the intrinsic parameters.
+    """
+    
     all_mode_factors = {
         "21": np.sqrt(5./PI)/4., 
         "22": np.sqrt(5./PI)/8., 
@@ -1386,6 +1391,13 @@ class HMFstatistics(Fstatistics):
             self.Nchannels = 2 
         else: 
             self.Nchannels = 3 
+            
+        if Fref_waveform: 
+            self.IntParamArr2ParamDictConversion = self.IntParamArr2ParamDictFRef
+            self.IntParamDict2ParamArrConversion = self.IntParamDict2ParamArrFRef
+        else: 
+            self.IntParamArr2ParamDictConversion = self.IntParamArr2ParamDict
+            self.IntParamDict2ParamArrConversion = self.IntParamDict2ParamArr
 
     def HM_calculate_Fstat(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
 
@@ -1496,7 +1508,233 @@ class HMFstatistics(Fstatistics):
 
         inners = self.SUM(self.MATMUL(self.MATMUL(residual_dagger1, self.invserse_covariance_matrix), residual2), axis=(3, 4, 5)) # (Nevents, Nrows, Nrows)
         return self.RE(inners)
+    
+    @staticmethod
+    def IntParamDict2ParamArr(param_dict):
+        return np.array([
+            np.log10(param_dict['chirp_mass']),
+            param_dict['mass_ratio'],
+            param_dict['spin_1z'],
+            param_dict['spin_2z'],
+            param_dict['coalescence_time'],
+            param_dict['longitude'],
+            np.sin(param_dict['latitude']),
+        ]) # (Nparams, Nevent)
 
+    @staticmethod
+    def IntParamArr2ParamDict(params):
+        p = dict()
+        p['chirp_mass'] = np.power(10., params[0])
+        p['mass_ratio'] = params[1]
+        p['spin_1z'] = params[2]
+        p['spin_2z'] = params[3]
+        p['coalescence_time'] = params[4]
+        p['longitude'] = params[5]
+        p['latitude'] = np.arcsin(params[6])
+        return p 
+    
+    @staticmethod
+    def IntParamDict2ParamArrFRef(param_dict):
+        return np.array([
+            np.log10(param_dict['chirp_mass']),
+            param_dict['mass_ratio'],
+            param_dict['spin_1z'],
+            param_dict['spin_2z'],
+            param_dict['reference_time'],
+            param_dict['longitude'],
+            np.sin(param_dict['latitude']),
+        ]) # (Nparams, Nevent)
+
+    @staticmethod
+    def IntParamArr2ParamDictFRef(params):
+        p = dict()
+        p['chirp_mass'] = np.power(10., params[0])
+        p['mass_ratio'] = params[1]
+        p['spin_1z'] = params[2]
+        p['spin_2z'] = params[3]
+        p['reference_time'] = params[4]
+        p['longitude'] = params[5]
+        p['latitude'] = np.arcsin(params[6])
+        return p
+    
+    
+class HMFstatistics_2params(Fstatistics):
+    def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
+        super().__init__(response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform, use_gpu, verbose) 
+        self.response_kwargs = response_parameters.copy() 
+        self.response_kwargs["output_by_mode"] = False 
+        if self.response_kwargs.get("modes", None) is None: 
+            self.modes = [(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)] 
+        else: 
+            self.modes = self.response_kwargs["modes"]
+        self.Nmodes = len(self.modes)
+        self.Nfreqs = len(frequency)
+        if self.response_kwargs.get("drop_T", False): 
+            self.Nchannels = 2 
+        else: 
+            self.Nchannels = 3 
+        
+        if Fref_waveform: 
+            self.IntParamArr2ParamDictConversion = self.IntParamArr2ParamDictFRef
+            self.IntParamDict2ParamArrConversion = self.IntParamDict2ParamArrFRef
+        else: 
+            self.IntParamArr2ParamDictConversion = self.IntParamArr2ParamDict
+            self.IntParamDict2ParamArrConversion = self.IntParamDict2ParamArr
+
+    def HM_calculate_Fstat(self, intrinsic_parameters, return_a=False, return_recovered_wave=False):
+        """  
+            intrinsic parameters: mbhb parameters except for luminosity distance and polarization angle 
+        """
+
+        Nevents = len(np.atleast_1d(intrinsic_parameters["chirp_mass"]))
+
+        full_parameters1 = copy.deepcopy(intrinsic_parameters)
+        full_parameters1["luminosity_distance"] = np.ones(Nevents)
+        full_parameters1["psi"] = np.zeros(Nevents)
+
+        temp1 = self.response_generator.Response(
+            parameters=full_parameters1,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nevents, Nfreqs) or (Nchannels, Nfreqs) if Nevents == 1
+
+        full_parameters2 = copy.deepcopy(full_parameters1)
+        full_parameters2["psi"] = np.ones(Nevents) * PI / 4. 
+
+        temp2 = self.response_generator.Response(
+            parameters=full_parameters2,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        ) # (Nchannels, Nevents, Nfreqs) or (Nchannels, Nfreqs) if Nevents == 1
+
+        if Nevents == 1:
+            temp1 = temp1[:, self.NX, :] # (Nchannels, 1, Nfreqs)
+            temp2 = temp2[:, self.NX, :]
+        # print("template shape:", temp1.shape, temp2.shape)
+
+        X1 = self.TRANS(temp1, axes=(1, 0, 2)) # (Nevents, Nchannels, Nfreqs)
+        X2 = self.TRANS(temp2, axes=(1, 0, 2)) # (Nevents, Nchannels, Nfreqs)
+        
+        data_expand = self.data[self.NX, :, :] # (1, Nchannels, Nfreqs)
+        
+        Nvector = self.TRANS(self.xp.array([
+            self.inner_product_vectorized(data_expand, X1), 
+            self.inner_product_vectorized(data_expand, X2), 
+        ])) # (Nevents, 2)
+        # print("shape of N vector:", Nvector.shape) 
+        
+        M12 = self.inner_product_vectorized(X1, X2) # (Nevent), real numbers 
+        Mmatrix = self.TRANS(self.xp.array([
+            [self.self_inner_product_vectorized(X1), M12], 
+            [M12, self.self_inner_product_vectorized(X2)], 
+        ]), axes=(2, 0, 1)) # (Nevents, 2, 2) 
+        # print("shape of M matrix:", Mmatrix.shape) 
+
+        invMmatrix = self.xp.linalg.inv(Mmatrix) # (Nevents, 2, 2)
+        Nvector_col = Nvector[..., self.NX] # (Nevents, 2, 1)
+        NM = self.MATMUL(invMmatrix, Nvector_col) # (Nevents, 2, 1)
+        Nvector_row = Nvector[:, self.NX, :] # (Nevents, 1, 2)
+        NMN = self.SUM(self.MATMUL(Nvector_row, NM), axis=(1,2)) # (Nevents, 1, 1) -> (Nevents)
+
+        res = 0.5 * NMN # (Nevents) Fstat 0.5 * N^T M^{-1} N
+
+        if return_a:
+            res_a = NM.squeeze(axis=-1) # (Nevents, 2)
+            if self.use_gpu:
+                return res_a.get() # (Nevents, 2)
+            else: 
+                return res_a # (Nevents, 2)
+            
+        if return_recovered_wave: 
+            res_a = NM.squeeze(axis=-1) # (Nevents, 2)
+            Xvector = self.TRANS(self.xp.array([X1, X2]), axes=(1, 0, 2, 3)) # (Nevents, 2, Nchannels, Nfreqs)
+            res_wf = self.SUM(res_a[:, :, self.NX, self.NX] * Xvector, axis=1) # (Nevents, Nchannels, Nfreqs)
+            if Nevents == 1: 
+                return res_wf[0] # (Nchannels, Nfreqs)
+            else:
+                return self.TRANS(res_wf, (1, 0, 2)) # (Nchannels, Nevents, Nfreqs)
+
+        # else:
+        if self.use_gpu:
+            if Nevents == 1:
+                return res.get()[0]
+            else:
+                return res.get() # (Nevents)
+        else: 
+            if Nevents == 1: 
+                return res[0]
+            else: 
+                return res 
+            
+    @staticmethod
+    def IntParamDict2ParamArr(param_dict):
+        return np.array([
+            np.log10(param_dict['chirp_mass']), # 0
+            param_dict['mass_ratio'], # 1
+            param_dict['spin_1z'], # 2
+            param_dict['spin_2z'], # 3
+            param_dict['coalescence_time'], # 4
+            param_dict['coalescence_phase'], # 5
+            np.cos(param_dict['inclination']), # 6
+            param_dict['longitude'], # 7
+            np.sin(param_dict['latitude']), # 8
+        ]) # (Nparams, Nevent)
+
+    @staticmethod
+    def IntParamArr2ParamDict(params):
+        p = dict()
+        p['chirp_mass'] = np.power(10., params[0])
+        p['mass_ratio'] = params[1]
+        p['spin_1z'] = params[2]
+        p['spin_2z'] = params[3]
+        p['coalescence_time'] = params[4]
+        p['coalescence_phase'] = params[5]
+        p['inclination'] = np.arccos(params[6])
+        p['longitude'] = params[7]
+        p['latitude'] = np.arcsin(params[8])
+        return p
+    
+    @staticmethod
+    def IntParamDict2ParamArrFRef(param_dict):
+        return np.array([
+            np.log10(param_dict['chirp_mass']), # 0
+            param_dict['mass_ratio'], # 1
+            param_dict['spin_1z'], # 2
+            param_dict['spin_2z'], # 3
+            param_dict['reference_time'], # 4
+            param_dict['reference_phase'], # 5
+            np.cos(param_dict['inclination']), # 6
+            param_dict['longitude'], # 7
+            np.sin(param_dict['latitude']), # 8
+        ]) # (Nparams, Nevent)
+
+    @staticmethod
+    def IntParamArr2ParamDictFRef(params):
+        p = dict()
+        p['chirp_mass'] = np.power(10., params[0])
+        p['mass_ratio'] = params[1]
+        p['spin_1z'] = params[2]
+        p['spin_2z'] = params[3]
+        p['reference_time'] = params[4]
+        p['reference_phase'] = params[5]
+        p['inclination'] = np.arccos(params[6])
+        p['longitude'] = params[7]
+        p['latitude'] = np.arcsin(params[8])
+        return p
+    
+    @staticmethod
+    def a_to_extrinsic(a):
+        """   
+            a: numpy array of shape (Nevents, 2)
+        """
+        Nevents = len(a)
+        extrinsic_parameters = dict()
+        extrinsic_parameters["luminosity_distance"] = 1. / np.sqrt(a[:, 0] ** 2 + a[:, 1] ** 2) # (Nevents)
+        extrinsic_parameters["psi"] = 0.5 * np.arctan(a[:, 1] / a[:, 0]) # (Nevents)
+        if Nevents == 1: 
+            for k, v in extrinsic_parameters.items(): 
+                extrinsic_parameters[k] = v[0]
+        return extrinsic_parameters
 
     
 
