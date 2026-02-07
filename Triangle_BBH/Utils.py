@@ -1731,7 +1731,8 @@ class HMFstatistics_2params(Fstatistics):
         Nevents = len(a)
         extrinsic_parameters = dict()
         extrinsic_parameters["luminosity_distance"] = 1. / np.sqrt(a[:, 0] ** 2 + a[:, 1] ** 2) # (Nevents)
-        extrinsic_parameters["psi"] = 0.5 * np.arctan(a[:, 1] / a[:, 0]) # (Nevents)
+        # extrinsic_parameters["psi"] = 0.5 * np.arctan(a[:, 1] / a[:, 0]) # (Nevents)
+        extrinsic_parameters["psi"] = 0.5 * np.arctan2(a[:, 1], a[:, 0]) # (Nevents)
         if Nevents == 1: 
             for k, v in extrinsic_parameters.items(): 
                 extrinsic_parameters[k] = v[0]
