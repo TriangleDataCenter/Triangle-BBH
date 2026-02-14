@@ -271,7 +271,7 @@ class Likelihood:
         else: 
             raise NotImplementedError("heterodyned likelihood with base waveform not implemented yet.")
         
-        self.het_h0[self.het_h0<1e-25] = 1e-25 
+        self.het_h0[self.xp.abs(self.het_h0)<1e-25] = 1e-25 
         
         # confine the frequency and data to be within the boundaries of sparce grid 
         inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
@@ -552,7 +552,8 @@ class HMLikelihood(Likelihood):
         ) # (Nchannels, Nmodes, N_het_f)
         
         # avoid singularity when calculating r = h / h0
-        self.het_h0[self.het_h0<1e-25] = 1e-25 
+        # self.het_h0[self.xp.abs(self.het_h0)<1e-25] = 1e-25
+        self.het_h0[self.xp.abs(self.het_h0)<1e-23] = 1e-23 
         
         # confine the frequency and data to be within the boundaries of sparce grid 
         inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
@@ -618,7 +619,8 @@ class HMLikelihood(Likelihood):
         ) # (Nchannels, Nmodes, N_het_f)
         
         # calculate heterodyne 
-        het_r = self.xp.nan_to_num(het_h / self.het_h0, nan=0.) # (Nchannels, Nmodes, N_het_f)
+        # het_r = self.xp.nan_to_num(het_h / self.het_h0, nan=0.) # (Nchannels, Nmodes, N_het_f)
+        het_r = het_h / self.het_h0 # (Nchannels, Nmodes, N_het_f)
         het_r_right = het_r[:, :, 1:] # (Nchannels, Nmodes, Nbins)
         het_r_left = het_r[:, :, :-1] # (Nchannels, Nmodes, Nbins)
         alpha = self.TRANS((het_r_right - het_r_left) / self.het_df, axes=(1, 0, 2)) # (Nchannels, Nmodes, Nbins) -> (Nmodes, Nchannels, Nbins)
@@ -655,7 +657,8 @@ class HMLikelihood(Likelihood):
         ), axes=(2, 0, 1, 3)) # (Nchannels, Nmodes, Nevents, N_het_f) -> (Nevents, Nchannels, Nmodes, N_het_f)
         
         # calculate heterodyne 
-        het_r = self.xp.nan_to_num(het_h / self.het_h0, nan=0.) # (Nevents, Nchannels, Nmodes, N_het_f)
+        # het_r = self.xp.nan_to_num(het_h / self.het_h0, nan=0.) # (Nevents, Nchannels, Nmodes, N_het_f)
+        het_r = het_h / self.het_h0 # (Nevents, Nchannels, Nmodes, N_het_f)
         het_r_right = het_r[:, :, :, 1:] # (Nevents, Nchannels, Nmodes, Nbins)
         het_r_left = het_r[:, :, :, :-1] # (Nevents, Nchannels, Nmodes, Nbins)
         alpha = self.TRANS((het_r_right - het_r_left) / self.het_df, axes=(0, 2, 1, 3)) # (Nevents, Nchannels, Nmodes, Nbins) -> (Nevents, Nmodes, Nchannels, Nbins)
