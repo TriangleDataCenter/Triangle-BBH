@@ -757,6 +757,175 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         # clean tiny values to avoid error in likelihood calculation
         results[np.abs(results)<1e-25]=0.
         return results 
+    
+    
+class FDTDIResponseGeneratorFRefPD4L(FDTDIResponseGeneratorFRef): 
+    def TransferFunction(self, t, f, k, Plm, TDIGeneration='2nd', tmin=None, tmax=None):
+        (Nevents, Nfreqs) = t.shape
+        t_flatten = t.flatten()
+
+        # positions 
+        p1 = np.array([
+            np.interp(x=t_flatten, xp=self.POS_time_int["1"], fp=self.POS_data_int["1"][:, 0]),
+            np.interp(x=t_flatten, xp=self.POS_time_int["1"], fp=self.POS_data_int["1"][:, 1]),
+            np.interp(x=t_flatten, xp=self.POS_time_int["1"], fp=self.POS_data_int["1"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        p2 = np.array([
+            np.interp(x=t_flatten, xp=self.POS_time_int["2"], fp=self.POS_data_int["2"][:, 0]),
+            np.interp(x=t_flatten, xp=self.POS_time_int["2"], fp=self.POS_data_int["2"][:, 1]),
+            np.interp(x=t_flatten, xp=self.POS_time_int["2"], fp=self.POS_data_int["2"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        p3 = np.array([
+            np.interp(x=t_flatten, xp=self.POS_time_int["3"], fp=self.POS_data_int["3"][:, 0]),
+            np.interp(x=t_flatten, xp=self.POS_time_int["3"], fp=self.POS_data_int["3"][:, 1]),
+            np.interp(x=t_flatten, xp=self.POS_time_int["3"], fp=self.POS_data_int["3"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        
+        # arm lengths 
+        d12 = np.interp(x=t_flatten, xp=self.LTT_time_int["12"], fp=self.LTT_data_int["12"]).reshape((Nevents, Nfreqs))
+        d13 = np.interp(x=t_flatten, xp=self.LTT_time_int["13"], fp=self.LTT_data_int["13"]).reshape((Nevents, Nfreqs))
+        d23 = np.interp(x=t_flatten, xp=self.LTT_time_int["23"], fp=self.LTT_data_int["23"]).reshape((Nevents, Nfreqs))
+        d21 = np.interp(x=t_flatten, xp=self.LTT_time_int["21"], fp=self.LTT_data_int["21"]).reshape((Nevents, Nfreqs))
+        d31 = np.interp(x=t_flatten, xp=self.LTT_time_int["31"], fp=self.LTT_data_int["31"]).reshape((Nevents, Nfreqs))
+        d32 = np.interp(x=t_flatten, xp=self.LTT_time_int["32"], fp=self.LTT_data_int["32"]).reshape((Nevents, Nfreqs))
+        
+        
+        # arm directions 
+        n12 = np.array([
+            np.interp(x=t_flatten, xp=self.ARM_time_int["12"], fp=self.ARM_data_int["12"][:, 0]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["12"], fp=self.ARM_data_int["12"][:, 1]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["12"], fp=self.ARM_data_int["12"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        n13 = np.array([
+            np.interp(x=t_flatten, xp=self.ARM_time_int["13"], fp=self.ARM_data_int["13"][:, 0]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["13"], fp=self.ARM_data_int["13"][:, 1]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["13"], fp=self.ARM_data_int["13"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        n23 = np.array([
+            np.interp(x=t_flatten, xp=self.ARM_time_int["23"], fp=self.ARM_data_int["23"][:, 0]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["23"], fp=self.ARM_data_int["23"][:, 1]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["23"], fp=self.ARM_data_int["23"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        n21 = np.array([
+            np.interp(x=t_flatten, xp=self.ARM_time_int["21"], fp=self.ARM_data_int["21"][:, 0]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["21"], fp=self.ARM_data_int["21"][:, 1]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["21"], fp=self.ARM_data_int["21"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        n31 = np.array([
+            np.interp(x=t_flatten, xp=self.ARM_time_int["31"], fp=self.ARM_data_int["31"][:, 0]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["31"], fp=self.ARM_data_int["31"][:, 1]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["31"], fp=self.ARM_data_int["31"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        n32 = np.array([
+            np.interp(x=t_flatten, xp=self.ARM_time_int["32"], fp=self.ARM_data_int["32"][:, 0]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["32"], fp=self.ARM_data_int["32"][:, 1]),
+            np.interp(x=t_flatten, xp=self.ARM_time_int["32"], fp=self.ARM_data_int["32"][:, 2]),
+        ]).transpose().reshape((Nevents, Nfreqs, 3))
+        
+        # k \dot n 
+        ke = np.expand_dims(k, axis=1)
+        kn12 =  np.sum(ke * n12, axis=2)
+        kn13 =  np.sum(ke * n13, axis=2)
+        kn23 =  np.sum(ke * n23, axis=2)
+        kn21 =  np.sum(ke * n21, axis=2)
+        kn31 =  np.sum(ke * n31, axis=2)
+        kn32 =  np.sum(ke * n32, axis=2)
+        
+        # k \dot (p_receive + p_send)
+        kp1p2 = np.sum(ke * (p1 + p2), axis=2)
+        kp2p3 = np.sum(ke * (p2 + p3), axis=2)
+        kp3p1 = np.sum(ke * (p3 + p1), axis=2)
+        
+        # prefactor = i*PI*f*d
+        prefactor12 = 1.j * PI * f * d12
+        prefactor13 = 1.j * PI * f * d13
+        prefactor23 = 1.j * PI * f * d23
+        prefactor21 = 1.j * PI * f * d21
+        prefactor31 = 1.j * PI * f * d31
+        prefactor32 = 1.j * PI * f * d32
+        
+        # sincfactor = sinc(PI*f*d*(1-kn)) = np.sinc(f*d*(1-kn))
+        sincfactor12 = np.sinc(f * d12 * (1. - kn12))
+        sincfactor13 = np.sinc(f * d13 * (1. - kn13))
+        sincfactor23 = np.sinc(f * d23 * (1. - kn23))
+        sincfactor21 = np.sinc(f * d21 * (1. - kn21))
+        sincfactor31 = np.sinc(f * d31 * (1. - kn31))
+        sincfactor32 = np.sinc(f * d32 * (1. - kn32))
+        
+        # expfactor = exp(i*PI*f*(d+k(p_receive+p_send)))
+        expfactor12 = np.exp(1.j * PI * f * (d12 + kp1p2))
+        expfactor13 = np.exp(1.j * PI * f * (d13 + kp3p1))
+        expfactor23 = np.exp(1.j * PI * f * (d23 + kp2p3))
+        expfactor21 = np.exp(1.j * PI * f * (d21 + kp1p2))
+        expfactor31 = np.exp(1.j * PI * f * (d31 + kp3p1))
+        expfactor32 = np.exp(1.j * PI * f * (d32 + kp2p3))
+        
+        # antenna pattern functions Fij
+        # matmul(n12, Plm) is of shape (Nevents, Nfreqs, 3)
+        F12 = np.sum(np.matmul(n12, Plm) * n12, axis=2)
+        F13 = np.sum(np.matmul(n13, Plm) * n13, axis=2)
+        F23 = np.sum(np.matmul(n23, Plm) * n23, axis=2)
+        F21 = np.sum(np.matmul(n21, Plm) * n21, axis=2)
+        F31 = np.sum(np.matmul(n31, Plm) * n31, axis=2)
+        F32 = np.sum(np.matmul(n32, Plm) * n32, axis=2)
+        
+        # combine into single-arm transferfunction  Gij
+        Gij = {}
+        Gij['12'] = prefactor12 * sincfactor12 * expfactor12 * F12
+        Gij['13'] = prefactor13 * sincfactor13 * expfactor13 * F13
+        Gij['23'] = prefactor23 * sincfactor23 * expfactor23 * F23
+        Gij['21'] = prefactor21 * sincfactor21 * expfactor21 * F21
+        Gij['31'] = prefactor31 * sincfactor31 * expfactor31 * F31
+        Gij['32'] = prefactor32 * sincfactor32 * expfactor32 * F32
+        
+        # delay factors 
+        D12 = np.exp(1.j * TWOPI * f * d12) 
+        D13 = np.exp(1.j * TWOPI * f * d13) 
+        D23 = np.exp(1.j * TWOPI * f * d23) 
+        D21 = np.exp(1.j * TWOPI * f * d21) 
+        D31 = np.exp(1.j * TWOPI * f * d31) 
+        D32 = np.exp(1.j * TWOPI * f * d32) 
+        
+        # combine into TDI transferfunction GTDI
+        if TDIGeneration == '1st':
+            raise ValueError("The PD4L channels are 2nd-generation.")
+
+        elif TDIGeneration == '2nd':            
+            D121 = D12 * D21
+            D131 = D13 * D31 
+            D232 = D23 * D32 
+            D212 = D21 * D12 
+            D313 = D31 * D13 
+            D323 = D32 * D23 
+            A12 = np.conjugate(D12)
+            A23 = np.conjugate(D23)
+            A31 = np.conjugate(D31)
+            GTDI = dict() 
+            GTDI["X"] = (1. - D232) * (Gij["12"] - D232 * A12 * Gij["21"] - Gij["13"] + D323 * A31 * Gij["31"])
+            GTDI["X"] += (D232 * A12 + D12 - D13 * D32 - D323 * A31 * D32) * Gij["23"]
+            GTDI["X"] += (D232 * A12 * D23 + D12 * D23 - D13 - D323 * A31) * Gij["32"]
+            GTDI["Y"] = (1. - D313) * (Gij["23"] - D313 * A23 * Gij["32"] - Gij["21"] + D131 * A12 * Gij["12"])
+            GTDI["Y"] += (D313 * A23 + D23 - D21 * D13 - D131 * A12 * D13) * Gij["31"]
+            GTDI["Y"] += (D313 * A23 * D31 + D23 * D31 - D21 - D131 * A12) * Gij["13"]
+            GTDI["Z"] = (1. - D121) * (Gij["31"] - D121 * A31 * Gij["13"] - Gij["32"] + D212 * A23 * Gij["23"])
+            GTDI["Z"] += (D121 * A31 + D31 - D32 * D21 - D212 * A23 * D21) * Gij["12"]
+            GTDI["Z"] += (D121 * A31 * D12 + D31 * D12 - D32 - D212 * A23) * Gij["21"]
+            
+        if tmin != None:
+            zero_inds = np.where(t < tmin * DAY)
+            for k in Gij.keys():
+                Gij[k][zero_inds] = 0.
+            for k in GTDI.keys():
+                GTDI[k][zero_inds] = 0.
+                
+        if tmax != None:
+            zero_inds = np.where(t > tmax * DAY)
+            for k in Gij.keys():
+                Gij[k][zero_inds] = 0.
+            for k in GTDI.keys():
+                GTDI[k][zero_inds] = 0.
+        
+        return Gij, GTDI
 
 
 
