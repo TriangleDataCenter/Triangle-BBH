@@ -266,7 +266,7 @@ class WaveformGeneratorFRef(WaveformGenerator):
     def __init__(self, mode='full'):
         super().__init__(mode)
     
-    def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, fref=1e-3, freqs=None):
+    def __call__(self, parameters, Nfreqs=1024, fmin=1e-5, fmax=1e-1, freqs=None):
         Nevents = np.atleast_1d(parameters["chirp_mass"]).shape[0]
         
         # conversion of parameters
@@ -289,12 +289,14 @@ class WaveformGeneratorFRef(WaveformGenerator):
             fmaxarr = np.full(Nevents, fmax)
             fgrids = np.geomspace(fminarr, fmaxarr, num=int(Nfreqs)) # (Nfreqs, Nevents)
         
-        FSTEP = 1e-6 # TEST
-        self.fcutarr = np.ones(Nevents) * fref
+        FSTEP = 1e-6 
+        q_array = np.atleast_1d(parameters["mass_ratio"])
+        self.fref = 4398.704053633259 * q_array ** (3./5.) / parameters_in["Mc"]  / (1. + q_array) ** (6./5.) # (Nevents), use fisco as fref  
+        self.fcutarr = np.ones(Nevents) * self.fref
         fgrids_cut = np.array([
             self.fcutarr - FSTEP, 
             self.fcutarr
-        ]) # (2, Nevents) TEST 
+        ]) # (2, Nevents) 
 
         fgrids = np.concatenate((fgrids, fgrids_cut), axis=0) # (Nfreqs + 2, Nevents)
         
