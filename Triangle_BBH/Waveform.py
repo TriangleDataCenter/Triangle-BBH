@@ -292,7 +292,7 @@ class WaveformGeneratorFRef(WaveformGenerator):
         FSTEP = 1e-6 
         q_array = np.atleast_1d(parameters["mass_ratio"])
         self.fref = 4398.704053633259 * q_array ** (3./5.) / parameters_in["Mc"]  / (1. + q_array) ** (6./5.) # (Nevents), use fisco as fref  
-        self.fcutarr = np.ones(Nevents) * self.fref
+        self.fcutarr = self.fref.copy()
         fgrids_cut = np.array([
             self.fcutarr - FSTEP, 
             self.fcutarr

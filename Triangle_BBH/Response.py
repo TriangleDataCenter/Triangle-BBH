@@ -555,15 +555,15 @@ class FDTDIResponseGenerator():
         
         if output_by_mode:
             # ensure the expected symmetry in TDI response
-            if tc_at_constellation: 
-                results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nmodes, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nmodes, Nevents, Nfreqs)
+            # if tc_at_constellation: 
+            #     results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nmodes, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nmodes, Nevents, Nfreqs)
             
             if Nevents == 1:
                 results = results[:, :, 0, :] # (Nchannels, Nmodes, Nfreqs)
         else:
             # ensure the expected symmetry in TDI response
-            if tc_at_constellation: 
-                results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
+            # if tc_at_constellation: 
+            #     results *= np.exp(1.j * TWOPI * self.waveform.f_ref * tc_delay)[:, np.newaxis] # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
             
             if Nevents == 1:
                 results = results[:, 0, :] # (Nchannels, Nfreqs)
@@ -738,16 +738,16 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
 
         if output_by_mode:
             # ensure the expected symmetry in TDI response
-            if tref_at_constellation:
-                results *= np.exp(1.j * TWOPI * self.waveform.fref * tref_delay[:, np.newaxis]) # (Nchannels, Nmodes, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nmodes, Nevents, Nfreqs)
+            # if tref_at_constellation:
+            #     results *= np.exp(1.j * TWOPI * self.waveform.fref * tref_delay[:, np.newaxis]) # (Nchannels, Nmodes, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nmodes, Nevents, Nfreqs)
             
             # squeeze if only one event
             if Nevents == 1: 
                 results = results[:, :, 0, :] # (Nchannels, Nmodes, Nevents, Nfreqs) -> (Nchannels, Nmodes, Nfreqs)
         else:         
             # ensure the expected symmetry in TDI response
-            if tref_at_constellation:
-                results *= np.exp(1.j * TWOPI * self.waveform.fref * tref_delay[:, np.newaxis]) # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
+            # if tref_at_constellation:
+            #     results *= np.exp(1.j * TWOPI * self.waveform.fref * tref_delay[:, np.newaxis]) # (Nchannels, Nevents, Nfreqs) * (Nevents, 1) = (Nchannels, Nevents, Nfreqs)
             
             # squeeze if only one event
             if Nevents == 1: 
