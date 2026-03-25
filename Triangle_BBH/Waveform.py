@@ -261,7 +261,6 @@ class WaveformGenerator():
         return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
     
 
-
 class WaveformGeneratorFRef(WaveformGenerator):
     def __init__(self, mode='full'):
         super().__init__(mode)
@@ -289,18 +288,25 @@ class WaveformGeneratorFRef(WaveformGenerator):
             fmaxarr = np.full(Nevents, fmax)
             fgrids = np.geomspace(fminarr, fmaxarr, num=int(Nfreqs)) # (Nfreqs, Nevents)
         
-        FSTEP = 1e-6 
+        # define reference frequency as f_iso 
         q_array = np.atleast_1d(parameters["mass_ratio"])
         self.fref = 4398.704053633259 * q_array ** (3./5.) / parameters_in["Mc"]  / (1. + q_array) ** (6./5.) # (Nevents), use fisco as fref  
         self.fcutarr = self.fref.copy()
+        
+        # set initial frequency at 1e-6 Hz 
+        FSTART = 1e-6
+        fstartarr = np.ones(Nevents) * FSTART
+        
+        # append the auxiliary frequency points to the whole frequency array 
+        FSTEP = 1e-6 
         fgrids_cut = np.array([
+            fstartarr,
             self.fcutarr - FSTEP, 
             self.fcutarr
-        ]) # (2, Nevents) 
-
-        fgrids = np.concatenate((fgrids, fgrids_cut), axis=0) # (Nfreqs + 2, Nevents)
+        ]) # (3, Nevents) 
+        fgrids = np.concatenate((fgrids, fgrids_cut), axis=0) # (Nfreqs + 3, Nevents)
         
-        # calculate amplitudes, phases by modes, each mode is originally a (Nfreqs+2, Nevents) array (will be transposed)
+        # calculate amplitudes, phases by modes, each mode is originally a (Nfreqs+3, Nevents) array (will be transposed)
         amplitudes = self.waveform.Ampl(fgrids, **parameters_in) # dict
         phases = self.waveform.Phi(fgrids, **parameters_in) # dict
         
@@ -308,46 +314,31 @@ class WaveformGeneratorFRef(WaveformGenerator):
         amps_out = {}
         phas_out = {}
         for k, v in amplitudes.items():
-            amps_out[(int(k[0]), int(k[1]))] = (v.T)[:, :-2] # (Nevents, Nfreqs)
-            phas_out[(int(k[0]), int(k[1]))] = phases[k].T # (Nevents, Nfreqs+2)
-        fgrids = fgrids.T # (Nevents, Nfreqs+2)
+            amps_out[(int(k[0]), int(k[1]))] = (v.T)[:, :-3] # (Nevents, Nfreqs)
+            phas_out[(int(k[0]), int(k[1]))] = phases[k].T # (Nevents, Nfreqs+3)
+        fgrids = fgrids.T # (Nevents, Nfreqs+3)
         
-        dphase_22_cut = (phas_out[(2,2)][:, -1] - phas_out[(2,2)][:, -2]) / FSTEP # phase derivative (Nevents) 
-
-        # ============= old rule begin =================        
-        # # the mode-independent part of phase correction (mainly time shift) 
-        # phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * (fgrids - self.fcutarr[:, np.newaxis]) # (Nevents, Nfreqs+2) 
-        
-        # # ensure symmetry in the response waveform 
-        # # phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * fgrids # (Nevents, Nfreqs+2) 
-        # # phase_mode_correction1 += dphase_22_cut[:, np.newaxis] * self.fcutarr[:, np.newaxis] # (Nevents, Nfreqs+2) 
-        
-        # phase_22_cut = phas_out[(2,2)][:, -1] # (Nevents)
-        # for k, v in phas_out.items(): 
-        #     # the mode-dependent part of phase correction 
-        #     phase_mode_correction2 = -0.5 * k[1] * phase_22_cut # -m/2 * phi_cut_22 (Nevents) 
-        #     phas_out[k] = (v + phase_mode_correction1 + phase_mode_correction2[:, np.newaxis])[:, :-2] # (Nevents, Nfreqs)
-        # ============== old rule end ==================
-        
-        # =============== new rule begin ==================
+        # adjust phase to fulfill two conditions: 
+        # (1) Phi_22(f_start) = 0 
+        # (2) dPhi_22/df(f_ref) = 2 pi t_ref
         # the mode-independent part of phase correction (time shift) 
-        phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * fgrids # (Nevents, Nfreqs+2) 
-        phase_22_cut = phas_out[(2,2)][:, -1] # (Nevents)
+        dphase_22_cut = (phas_out[(2,2)][:, -1] - phas_out[(2,2)][:, -2]) / FSTEP # phase derivative (Nevents)
+        phase_mode_correction1 = (-dphase_22_cut + TWOPI * parameters_in['reference_time'] * DAY)[:, np.newaxis] * fgrids # (Nevents, Nfreqs+3) 
+        phase_22_cut = phas_out[(2,2)][:, -3] # phase at fstart (Nevents)
         for k, v in phas_out.items(): 
             # the mode-dependent part of phase correction 
-            phase_mode_correction2 = 0.5 * k[1] * (-phase_22_cut + self.fcutarr * (dphase_22_cut - TWOPI * parameters_in['reference_time'] * DAY)) # (Nevents) 
-            phas_out[k] = (v + phase_mode_correction1 + phase_mode_correction2[:, np.newaxis])[:, :-2] # (Nevents, Nfreqs)
-        # ============== new rule end =========================
-        
-        fgrids = fgrids[:, :-2] # (Nevents, Nfreqs)
-        # calculate time grids by t-f relationship 
+            phase_mode_correction2 = 0.5 * k[1] * (-phase_22_cut + fstartarr * (dphase_22_cut - TWOPI * parameters_in['reference_time'] * DAY)) # (Nevents) 
+            phas_out[k] = (v + phase_mode_correction1 + phase_mode_correction2[:, np.newaxis])[:, :-3] # (Nevents, Nfreqs)
+
+        # calculate time grids by t-f relationship
         tfs_out = {}
-        dfgrids = np.gradient(fgrids, axis=1) # (Nevents, Nfreqs) TEST 
+        fgrids = fgrids[:, :-3] # (Nevents, Nfreqs) 
+        dfgrids = np.gradient(fgrids, axis=1) # (Nevents, Nfreqs) 
         for k, v in phas_out.items(): 
-            dphase = np.gradient(v, axis=1) # (Nevents, Nfreqs) TEST 
-            tfs_out[k] = dphase / dfgrids / TWOPI # (Nevents, Nfreqs) TEST 
+            dphase = np.gradient(v, axis=1) # (Nevents, Nfreqs)  
+            tfs_out[k] = dphase / dfgrids / TWOPI # (Nevents, Nfreqs) 
  
-        return fgrids, amps_out, phas_out, tfs_out # each item of shape (Nevents, Nfreqs)
+        return fgrids, amps_out, phas_out, tfs_out # each item has shape (Nevents, Nfreqs)
 
 
 class BBHxWaveformGenerator():
