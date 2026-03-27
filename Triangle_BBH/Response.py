@@ -611,6 +611,7 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         freqs, 
         fmin=1e-5, # used to calculate freq grid
         fmax=1e-1, # used to calculate freq grid
+        fref=1e-3, # set reference frequency 
         Nfreqs=1024, # used to calculate freq grid
         modes=[(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)], 
         tmin=None, # minimum time of orbit in day 
@@ -650,9 +651,9 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         
         # calculate frequency grids (mode-independent), waveforms and time grids (mode-dependent)
         if interpolation_method == None:
-            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, freqs=np.tile(freqs, (Nevents, 1)))
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, fref=fref, freqs=np.tile(freqs, (Nevents, 1)))
         else:
-            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, freqs=None)
+            fgrids, amps, phas, tgrids = self.waveform(parameters=parameter_dict, Nfreqs=Nfreqs, fmin=fmin, fmax=fmax, fref=fref, freqs=None)
 
         # calculate transfer function at the frequency and time grids and then interpolate (Nevents, Nfreqs) --> (Nevents, Nfreqs_out)
         Nfreqs_out = freqs.shape[-1]
