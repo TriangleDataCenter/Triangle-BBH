@@ -216,17 +216,17 @@ class Fisher():
     def calculate_errors(self):
         """Invert the Fisher matrix to obtain 1-sigma parameter uncertainties.
 
-        Computes the covariance matrix via ``np.linalg.pinv`` (SVD-based
-        pseudoinverse) and extracts marginal errors.  Sets ``self.CovMatrix``
-        and ``self.errors``.  Must be called after ``calculate_Fisher()``.
+        Computes the covariance matrix via ``np.linalg.inv`` and extracts
+        marginal errors.  Sets ``self.CovMatrix`` and ``self.errors``.
+        Must be called after ``calculate_Fisher()``.
         """
         self.param_errors = {}
         cond = np.linalg.cond(self.Fisher)
         if self.verbose > 0:
             print('Fisher matrix condition number: {:.1e}'.format(cond))
         if cond > 1e15:
-            print('WARNING: Fisher matrix condition number ({:.1e}) exceeds threshold 1e15, using pseudoinverse.'.format(cond))
-        Covariance = np.linalg.pinv(self.Fisher, rcond=1e-15)
+            print('WARNING: Fisher matrix condition number ({:.1e}) exceeds threshold 1e15, results may be unreliable.'.format(cond))
+        Covariance = np.linalg.inv(self.Fisher)
         errors = np.sqrt(np.diagonal(Covariance))
         for i in range(self.num_analyze_params):
             name = self.analyze_param_names[i]
@@ -446,17 +446,17 @@ class MultiChannelFisher():
     def calculate_errors(self):
         """Invert the Fisher matrix to obtain 1-sigma parameter uncertainties.
 
-        Computes the covariance matrix via ``np.linalg.pinv`` (SVD-based
-        pseudoinverse) and extracts marginal errors.  Sets ``self.CovMatrix``
-        and ``self.errors``.  Must be called after ``calculate_Fisher()``.
+        Computes the covariance matrix via ``np.linalg.inv`` and extracts
+        marginal errors.  Sets ``self.CovMatrix`` and ``self.errors``.
+        Must be called after ``calculate_Fisher()``.
         """
         self.param_errors = {}
         cond = np.linalg.cond(self.Fisher)
         if self.verbose > 0:
             print('Fisher matrix condition number: {:.1e}'.format(cond))
         if cond > 1e15:
-            print('WARNING: Fisher matrix condition number ({:.1e}) exceeds threshold 1e15, using pseudoinverse.'.format(cond))
-        Covariance = np.linalg.pinv(self.Fisher, rcond=1e-15)
+            print('WARNING: Fisher matrix condition number ({:.1e}) exceeds threshold 1e15, results may be unreliable.'.format(cond))
+        Covariance = np.linalg.inv(self.Fisher)
         errors = np.sqrt(np.diagonal(Covariance))
         for i in range(self.num_analyze_params):
             name = self.analyze_param_names[i]
