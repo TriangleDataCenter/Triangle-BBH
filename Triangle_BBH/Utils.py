@@ -30,7 +30,7 @@ def FrequencyDomainMismatch(h1, h2, psd):
     inner12 = np.real(np.sum(h1 * np.conjugate(h2) / psd)) 
     return 1. - inner12 / rho1 / rho2
 
-def FrequencyDomainInnterProduct(h1, h2, psd, df):
+def FrequencyDomainInnerProduct(h1, h2, psd, df):
     return 4. * np.real(np.sum(df * h1 * np.conjugate(h2) / psd))
 
 
