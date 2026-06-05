@@ -52,7 +52,7 @@ def FrequencyDomainCovarianceSNR(data_channels, inv_cov):
 def FrequencyDomainCovarianceInnerProduct(data_channels1, data_channels2, inv_cov):
     """  
     Args:
-        data_channels1, 2: numpy arraies of shapes (3, Nf)
+        data_channels1, 2: numpy arrays of shapes (3, Nf)
         inv_cov: numpy array of shape (Nf, 3, 3), with Cov_IJ = CSD_IJ / 4 / Df, CSD_IJ = 2<I J^*>/T
     Returns: 
         d_1^\dagger C^-1 d_2, complex scalar (not the conventional definition of inner product, which should be a real number)
@@ -66,7 +66,7 @@ def FrequencyDomainCovarianceInnerProduct(data_channels1, data_channels2, inv_co
 
 def ParamDict2ParamArr(param_dict):
     """ 
-    convert parameter dict to parameter array where Mc and D are in logscalse, 
+    convert parameter dict to parameter array where Mc and dL are in logscale, 
     inclination and latitude are converted to their cosine and sine values 
     """
     return [
@@ -100,7 +100,7 @@ def ParamArr2ParamDict(params):
 
 def ParamDict2ParamArrFref(param_dict):
     """ 
-    convert parameter dict to parameter array where Mc and D are in logscalse, 
+    convert parameter dict to parameter array where Mc and dL are in logscale, 
     inclination and latitude are converted to their cosine and sine values 
     """
     return [
@@ -135,7 +135,7 @@ def ParamArr2ParamDictFref(params):
 
 
 class Likelihood:
-    # TODO: mode-by-mode heterodyne for the PhenonmHM waveform 
+    # TODO: mode-by-mode heterodyne for the PhenomHM waveform 
     def __init__(self, response_generator, frequency, data, invserse_covariance_matrix, response_parameters, Fref_waveform=False, use_gpu=False, verbose=0):
         """ 
         Args: 
@@ -228,7 +228,7 @@ class Likelihood:
             base_parameters: None or numpy array of shape (Nparams)
             base_waveform: None or numpy array of shape (3, Nf)
             num_het_frequency: number of sparse frequencies to calculate the waveform perturbation, N_het_f = Nb + 1 
-            NOTE: currently we only recommand the use of base parameters rather than base waveform 
+            NOTE: we recommend only using base parameters rather than base waveform 
         """
         if base_waveform is None:
             self.h0 = self.response_generator.Response(
@@ -239,11 +239,11 @@ class Likelihood:
         else: 
             raise NotImplementedError("heterodyned likelihood with base waveform not implemented yet.")
         
-        # create sparce grid of frequencies (1st try)
+        # create sparse grid of frequencies (1st try)
         FMIN, FMAX = self.xp.min(self.frequency) * 0.999999999999, self.xp.max(self.frequency) * 1.000000000001
         self.het_frequency = self.xp.logspace(self.xp.log10(FMIN), self.xp.log10(FMAX), num_het_frequency) # N_het_f
         
-        # calculate base waveform at the sparce grid (1st try)
+        # calculate base waveform at the sparse grid (1st try)
         if base_waveform is None:
             self.het_h0 = self.response_generator.Response(
                 parameters=self.ParamArr2ParamDict(base_parameters),
@@ -258,10 +258,10 @@ class Likelihood:
         valid_idx = self.xp.where(self.xp.abs(self.het_h0[0]) > 1e-25)[0]
         tmpf = self.het_frequency[valid_idx]
         
-        # create sparce grid of frequencies (final)
+        # create sparse grid of frequencies (final)
         self.het_frequency = self.xp.logspace(self.xp.log10(tmpf[0]), self.xp.log10(tmpf[-1]), num_het_frequency) # N_het_f
         
-        # calculate base waveform at the sparce grid (final)
+        # calculate base waveform at the sparse grid (final)
         if base_waveform is None: 
             self.het_h0 = self.response_generator.Response(
                 parameters=self.ParamArr2ParamDict(base_parameters),
@@ -273,14 +273,14 @@ class Likelihood:
         
         self.het_h0[self.xp.abs(self.het_h0)<1e-25] = 1e-25 
         
-        # confine the frequency and data to be within the boundaries of sparce grid 
+        # confine the frequency and data to be within the boundaries of sparse grid 
         inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
         self.dense_frequency = self.frequency[inband_idx] # (Nf)
         self.dense_data = self.data[:, inband_idx] # (3, Nf)
         self.dense_h0 = self.h0[:, inband_idx] # (3, Nf)
         self.dense_invserse_covariance_matrix = self.invserse_covariance_matrix[inband_idx] # (Nf, 3, 3)
         
-        # group the dense frequencies with the sparce frequency grid, return the left idx of each dense frequency, each bin is labeled by this 
+        # group the dense frequencies with the sparse frequency grid, return the left idx of each dense frequency, each bin is labeled by this 
         group_idx = self.xp.searchsorted(self.het_frequency, self.dense_frequency, "right") - 1 # (Nf)
         dense_frequency_offset = self.dense_frequency - self.het_frequency[group_idx] # (Nf)
         
@@ -292,7 +292,7 @@ class Likelihood:
         A0_pre = self.xp.matmul(self.xp.transpose(self.xp.conjugate(self.dense_data))[:, :, self.xp.newaxis], self.xp.transpose(self.dense_h0)[:, self.xp.newaxis, :]) * self.dense_invserse_covariance_matrix # (Nf, 3, 1) * (Nf, 1, 3) -> (Nf, 3, 3)
         A1_pre = A0_pre * dense_frequency_offset[:, self.xp.newaxis, self.xp.newaxis] # (Nf, 3, 3)
         
-        # sum all the coefficients in sparce grids  
+        # sum all the coefficients in sparse grids  
         self.Nbin = num_het_frequency - 1 
         if self.response_kwargs.get("drop_T", False): 
             self.B0 = self.xp.zeros((self.Nbin, 2, 2), dtype=self.xp.complex128)
@@ -304,7 +304,7 @@ class Likelihood:
             self.B1 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
             self.A0 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
             self.A1 = self.xp.zeros((self.Nbin, 3, 3), dtype=self.xp.complex128)
-        for ibin in self.xp.unique(group_idx): # loop over the left idx of sparce grids 
+        for ibin in self.xp.unique(group_idx): # loop over the left idx of sparse grids 
             inbin_idx = group_idx == ibin 
             self.B0[ibin] = self.xp.sum(B0_pre[inbin_idx], axis=0) # (3, 3)
             self.B1[ibin] = self.xp.sum(B1_pre[inbin_idx], axis=0)
@@ -325,7 +325,7 @@ class Likelihood:
         if not self.het_prepare_flag: 
             raise NotImplementedError("heterodyne not prepared, run preparation first.")
             
-        # calculate sparce template 
+        # calculate sparse template 
         het_h = self.response_generator.Response(
             parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.het_frequency,
@@ -362,12 +362,12 @@ class Likelihood:
             parameter_array: parameters given as an array of shape (Nparams, Nevents)
             the order is: ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
         Returns: 
-            numpy array of heterodyned loglikes 
+            numpy array of heterodyned log-likelihoods 
         """
         if not self.het_prepare_flag: 
             raise NotImplementedError("heterodyne not prepared, run preparation first.")
             
-        # calculate sparce template 
+        # calculate sparse template 
         het_h = self.xp.transpose(self.response_generator.Response(
             parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.het_frequency,
@@ -488,7 +488,7 @@ class Likelihood:
     def FrequencyDomainCovarianceInnerProduct(self, data_channels1, data_channels2, inv_cov):
         """  
         Args:
-            data_channels1, 2: numpy arraies of shapes (3, Nf)
+            data_channels1, 2: numpy arrays of shapes (3, Nf)
             inv_cov: numpy array of shape (Nf, 3, 3), with Cov_IJ = CSD_IJ / 4 / Df, CSD_IJ = 2<I J^*>/T
         Returns: 
             d_1^\dagger C^-1 d_2, complex scalar 
@@ -524,11 +524,11 @@ class HMLikelihood(Likelihood):
         self.Nchannels = len(self.h0)
         self.Nmodes = len(self.h0[0])
         
-        # create sparce grid of frequencies (1st try)
+        # create sparse grid of frequencies (1st try)
         FMIN, FMAX = self.xp.min(self.frequency) * 0.999999999999, self.xp.max(self.frequency) * 1.000000000001
         self.het_frequency = self.xp.logspace(self.xp.log10(FMIN), self.xp.log10(FMAX), num_het_frequency) # N_het_f
         
-        # calculate base waveform at the sparce grid (1st try)
+        # calculate base waveform at the sparse grid (1st try)
         self.het_h0 = self.response_generator.Response(
             # parameters=self.ParamArr2ParamDict(base_parameters),
             parameters=base_parameters, 
@@ -540,10 +540,10 @@ class HMLikelihood(Likelihood):
         valid_idx = self.xp.where(self.xp.abs(self.het_h0[0][0]) > 1e-25)[0]
         tmpf = self.het_frequency[valid_idx]
         
-        # create sparce grid of frequencies (final)
+        # create sparse grid of frequencies (final)
         self.het_frequency = self.xp.logspace(self.xp.log10(tmpf[0]), self.xp.log10(tmpf[-1]), num_het_frequency) # N_het_f
         
-        # calculate base waveform at the sparce grid (final)
+        # calculate base waveform at the sparse grid (final)
         self.het_h0 = self.response_generator.Response(
             # parameters=self.ParamArr2ParamDict(base_parameters),
             parameters=base_parameters, 
@@ -555,7 +555,7 @@ class HMLikelihood(Likelihood):
         # self.het_h0[self.xp.abs(self.het_h0)<1e-25] = 1e-25
         self.het_h0[self.xp.abs(self.het_h0)<1e-23] = 1e-23 
         
-        # confine the frequency and data to be within the boundaries of sparce grid 
+        # confine the frequency and data to be within the boundaries of sparse grid 
         inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
         self.dense_frequency = self.frequency[inband_idx] # (Nf)
         self.dense_data = self.data[:, inband_idx] # (Nchannels, Nf)
@@ -563,7 +563,7 @@ class HMLikelihood(Likelihood):
         self.dense_invserse_covariance_matrix = self.invserse_covariance_matrix[inband_idx] # (Nf, Nchannels, Nchannels)
         self.Nfreqs_dense = len(self.dense_frequency)
         
-        # group the dense frequencies with the sparce frequency grid, return the left sparse idx of each dense frequency
+        # group the dense frequencies with the sparse frequency grid, return the left sparse idx of each dense frequency
         group_idx = self.xp.searchsorted(self.het_frequency, self.dense_frequency, "right") - 1 # (Nf)
         
         # calculate the coefficients of heterodyned likelihood 
@@ -606,12 +606,12 @@ class HMLikelihood(Likelihood):
         Parameters: 
             parameter_array: parameters given as an array, the order is: ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
         Returns: 
-            heterodyned loglike (scalar)
+            heterodyned log-likelihood (scalar)
         """
         if not self.het_prepare_flag: 
             raise NotImplementedError("Heterodyne not prepared.")
         
-        # calculate sparce template 
+        # calculate sparse template 
         het_h = self.response_generator.Response(
             parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.het_frequency,
@@ -644,12 +644,12 @@ class HMLikelihood(Likelihood):
         Parameters: 
             parameter_array: parameters given as a (Nparams, Nevents) array, the order is: ['log_chirp_mass', 'mass_ratio', 'spin_1z', 'spin_2z', 'coalescence_time', 'coalescence_phase', 'log_luminosity_distance', 'cos_inclination', 'longitude', 'sin_latitude', 'psi']
         Returns: 
-            heterodyned loglike (scalar)
+            heterodyned log-likelihoods (Nevents,)
         """
         if not self.het_prepare_flag: 
             raise NotImplementedError("Heterodyne not prepared.")
         
-        # calculate sparce template 
+        # calculate sparse template 
         het_h = self.TRANS(self.response_generator.Response(
             parameters=self.ParamArr2ParamDict(parameter_array),
             freqs=self.het_frequency,
@@ -1830,8 +1830,8 @@ def get_reflected_parameter_dict(searched_params, orbit):
     lat_ssb = searched_params["latitude"]
     psi_ssb = searched_params["psi"]
     lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, searched_params["coalescence_time"]*DAY, orbit)
-    lat_det = -lat_det # reflect latitutde 
-    psi_det = PI - psi_det # reflect psi 
+    lat_det = -lat_det  # reflect latitude
+    psi_det = PI - psi_det  # reflect psi
     searched_ref_params = copy.deepcopy(searched_params)
     searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["coalescence_time"]*DAY, orbit)
     searched_ref_params["inclination"] = PI - searched_params["inclination"] # reflect inclination 
@@ -1845,8 +1845,8 @@ def get_reflected_parameter_dict_Fref(searched_params, orbit, tc=None):
         lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, searched_params["reference_time"]*DAY, orbit)
     else: 
         lon_det, lat_det, psi_det = SSBPosToDetectorFrame(lon_ssb, lat_ssb, psi_ssb, tc*DAY, orbit)
-    lat_det = -lat_det # reflect latitutde 
-    psi_det = PI - psi_det # reflect psi 
+    lat_det = -lat_det  # reflect latitude
+    psi_det = PI - psi_det  # reflect psi
     searched_ref_params = copy.deepcopy(searched_params)
     if tc is None: 
         searched_ref_params["longitude"], searched_ref_params["latitude"], searched_ref_params["psi"] = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, searched_params["reference_time"]*DAY, orbit)
@@ -1857,8 +1857,8 @@ def get_reflected_parameter_dict_Fref(searched_params, orbit, tc=None):
 
 def get_reflected_parameters(original_lon, original_lat, original_psi, original_inc, orbit_time_SI, orbit):
     lon_det, lat_det, psi_det = SSBPosToDetectorFrame(original_lon, original_lat, original_psi, orbit_time_SI, orbit)
-    lat_det = -lat_det # reflect latitutde 
-    psi_det = PI - psi_det # reflect psi 
+    lat_det = -lat_det  # reflect latitude
+    psi_det = PI - psi_det  # reflect psi
     reflected_lon, reflected_lat, reflected_psi = DetectorPosToSSBFrame(lon_det, lat_det, psi_det, orbit_time_SI, orbit)
     reflected_inc = PI - original_inc
     return reflected_lon, reflected_lat, reflected_psi, reflected_inc

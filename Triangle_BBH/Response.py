@@ -17,7 +17,7 @@ from Triangle.Constants import *
 def SpinWeightedSphericalHarmonic(theta, phi, l, m, s=-2):
     # Taken from arXiv:0709.0093v3 eq. (II.7), (II.8) and LALSimulation for the s=-2 case and up to l=4
     """  
-    The results are in consistency with LDC Radler manual.
+    The results are consistent with LDC Radler manual.
     theta, phi: spherical coordinates of the source frame (i.e. iota0 and phi0 in the LDC manual). 
     This function allows vectorized inputs and outputs.
     """
@@ -87,20 +87,20 @@ def SpinWeightedSphericalHarmonic(theta, phi, l, m, s=-2):
 
 class FDTDIResponseGenerator():
     """  
-        The rule of Fourier transform is the same as S. Marsat, i.e. the ``unusual'' convention,
-        aiming to ensure h_lm(f) neq 0 when m > 0 and f > 0.
-        Accordingly, h_lm(f) = A_lm(f) * exp[-i Psi_lm(f)].
-        The waveform class outputs Phi_lm(f) = -Psi_lm(f), thus h_lm(f) = A_lm(f) exp[i Phi_lm(f)]
-        The conjugate will be taken at last to convert to the usual convension.
-        
-        Parameters should be given in the form of dictionary, with the keys denoting the names of parameters, 
-        including:
-        "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
-        "coalescence_time" [DAY] (at the center of detector constellation), "coalescence_phase" [rad],
-        "luminosity_distance" [MPC], "inclination" [rad], 
-        "longitude" [rad], "latitude" [rad], "psi" [rad]
-        
-        modes = [(2, 2)] for PhenomD and [(2, 2), (2, 1), (3, 2), (3, 3), (4, 3), (4, 4)] for PhenomHM
+    The rule of Fourier transform is the same as S. Marsat, i.e. the ``unusual'' convention,
+    aiming to ensure h_lm(f) neq 0 when m > 0 and f > 0.
+    Accordingly, h_lm(f) = A_lm(f) * exp[-i Psi_lm(f)].
+    The waveform class outputs Phi_lm(f) = -Psi_lm(f), thus h_lm(f) = A_lm(f) exp[i Phi_lm(f)]
+    The conjugate will be taken at the end to convert to the usual convention.
+    
+    Parameters should be given in the form of dictionary, with the keys denoting the names of parameters, 
+    including:
+    "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
+    "coalescence_time" [DAY] (at the center of detector constellation), "coalescence_phase" [rad],
+    "luminosity_distance" [MPC], "inclination" [rad], 
+    "longitude" [rad], "latitude" [rad], "psi" [rad]
+    
+    modes = [(2, 2)] for PhenomD and [(2, 2), (2, 1), (3, 2), (3, 3), (4, 3), (4, 4)] for PhenomHM
     """
     ep_0 = np.array(
         [[1, 0, 0], 
@@ -133,7 +133,7 @@ class FDTDIResponseGenerator():
         
     def WaveVector(self, parameters):
         """ 
-            returns:
+            Returns:
             k: wave vector of GW
         """
         l, b = parameters['longitude'], parameters['latitude']
@@ -143,7 +143,7 @@ class FDTDIResponseGenerator():
     
     def PolarBasis(self, parameters):
         """ 
-            returns:
+            Returns:
             ep, ec: polarization bases of GW in the source frame 
         """
         l, b, p = parameters['longitude'], parameters['latitude'], parameters['psi']
@@ -202,7 +202,7 @@ class FDTDIResponseGenerator():
             k is the wave vector of GW with shape (Nevents, 3)
             Plm is the polar basis of a specific (l, m) mode with shape (Nevents, 3, 3).
             
-            arraies which should be calculated for each `ij' arm:
+            arrays which should be calculated for each `ij' arm:
             dij : (Nevents, Nfreqs) in [s]
             nij : (Nevents, Nfreqs, 3)
             knij : (Nevents, Nfreqs)
@@ -214,7 +214,7 @@ class FDTDIResponseGenerator():
             Fij : (Nevents, Nfreqs) = nij \bigocross nij : Plm
             Gij : (Nevents, Nfreqs) i.e. G^lm_slr in S. Marsat
             X/Y/Z plus/minus factor : (Nevents, Nfreqs)
-            GTDI : (Nevnets, Nfreqs) i.e. transfer functions for TDI channels X, Y, Z
+            GTDI : (Nevents, Nfreqs) i.e. transfer functions for TDI channels X, Y, Z
             these values all depend on lm implicitly due to the t-f relations, thus should be calculated per mode
             the data will first be calculated at the frequency grids and  stored in dictionaries.
             
@@ -343,7 +343,7 @@ class FDTDIResponseGenerator():
         F31 = np.sum(np.matmul(n31, Plm) * n31, axis=2)
         F32 = np.sum(np.matmul(n32, Plm) * n32, axis=2)
         
-        # combine into single-arm transferfunction  Gij
+        # combine into single-arm transfer function  Gij
         Gij = {}
         Gij['12'] = prefactor12 * sincfactor12 * expfactor12 * F12
         Gij['13'] = prefactor13 * sincfactor13 * expfactor13 * F13
@@ -360,7 +360,7 @@ class FDTDIResponseGenerator():
         D31 = np.exp(1.j * TWOPI * f * d31) 
         D32 = np.exp(1.j * TWOPI * f * d32) 
         
-        # combine into TDI transferfunction GTDI
+        # combine into TDI transfer function GTDI
         if TDIGeneration == '1st':
             X1plusfactor = (1. - D12 * D21) 
             X1minusfactor = (1. - D13 * D31) 
@@ -447,7 +447,7 @@ class FDTDIResponseGenerator():
             --> TDI TransferFunction --> Interpolation
         """
         
-        # convert scalar parameters to arraies 
+        # convert scalar parameters to arrays 
         parameter_dict = parameters.copy()
         for k, v in parameters.items():
             parameter_dict[k] = np.atleast_1d(v)
@@ -458,7 +458,7 @@ class FDTDIResponseGenerator():
         Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes) 
         k = self.WaveVector(parameters=parameter_dict) 
         
-        # convert the coalescence time from constellaton center to SSB
+        # convert the coalescence time from constellation center to SSB
         tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
         if tc_at_constellation:
             parameter_dict['coalescence_time'] += -tc_delay / DAY # (Nevent)
@@ -588,18 +588,18 @@ class FDTDIResponseGenerator():
 
 class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
     """   
-        parametrization: 
-            chirp_mass
-            mass_ratio 
-            spin_1z
-            spin_2z
-            reference_time 
-            reference_phase 
-            luminosity_distance 
-            inclination 
-            longitude 
-            latitude 
-            psi 
+    parametrization: 
+        chirp_mass
+        mass_ratio 
+        spin_1z
+        spin_2z
+        reference_time 
+        reference_phase 
+        luminosity_distance 
+        inclination 
+        longitude 
+        latitude 
+        psi 
     """
     def __init__(self, orbit_class, waveform_generator):
         """ the waveform generator used here should depend on fref """
@@ -624,7 +624,7 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
         output_by_mode=False, 
         ):
         
-        # convert scalar parameters to arraies 
+        # convert scalar parameters to arrays 
         parameter_dict = dict() 
         for k, v in parameters.items():
             parameter_dict[k] = np.atleast_1d(v)
@@ -641,7 +641,7 @@ class FDTDIResponseGeneratorFRef(FDTDIResponseGenerator):
 
         parameter_dict.pop('coalescence_phase') # REMOVE useless parameter 
         
-        # convert the reference time from constellaton center to SSB
+        # convert the reference time from constellation center to SSB
         tref_delay = self.SSBToConstellationDelay(k, parameter_dict) # \hat{k} \cdot R_0(t_ref) / C, (Nevent)
         if tref_at_constellation:
             # parameter_dict['coalescence_time'] += -tref_delay / DAY # (Nevent)
@@ -869,7 +869,7 @@ class FDTDIResponseGeneratorFRefPD4L(FDTDIResponseGeneratorFRef):
         F31 = np.sum(np.matmul(n31, Plm) * n31, axis=2)
         F32 = np.sum(np.matmul(n32, Plm) * n32, axis=2)
         
-        # combine into single-arm transferfunction  Gij
+        # combine into single-arm transfer function  Gij
         Gij = {}
         Gij['12'] = prefactor12 * sincfactor12 * expfactor12 * F12
         Gij['13'] = prefactor13 * sincfactor13 * expfactor13 * F13
@@ -886,7 +886,7 @@ class FDTDIResponseGeneratorFRefPD4L(FDTDIResponseGeneratorFRef):
         D31 = np.exp(1.j * TWOPI * f * d31) 
         D32 = np.exp(1.j * TWOPI * f * d32) 
         
-        # combine into TDI transferfunction GTDI
+        # combine into TDI transfer function GTDI
         if TDIGeneration == '1st':
             raise ValueError("The PD4L channels are 2nd-generation.")
 
@@ -931,20 +931,20 @@ class FDTDIResponseGeneratorFRefPD4L(FDTDIResponseGeneratorFRef):
 
 class BBHxFDTDIResponseGenerator():
     """  
-        The rule of Fourier transform is the same as S. Marsat, which is an ``unusual'' convention,
-        aiming to ensure h_lm(f) neq 0 when m > 0 and f > 0.
-        Accordingly, h_lm(f) = A_lm(f) * exp[-i Psi_lm(f)].
-        The waveform class outputs Phi_lm(f) = -Psi_lm(f), thus h_lm(f) = A_lm(f) exp[i Phi_lm(f)]
-        While, the complex conjugate of results will be taken at last to convert to the usual FT convension.
-        
-        Parameters should be given in the form of dictionary, with the keys denoting the names of parameters, 
-        including:
-        "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
-        "coalescence_time" [DAY] (at the center of detector constellation), "coalescence_phase" [rad],
-        "luminosity_distance" [MPC], "inclination" [rad], 
-        "longitude" [rad], "latitude" [rad], "psi" [rad]
-        
-        modes = [(2, 2)] for PhenomD and [(2, 2), (2, 1), (3, 2), (3, 3), (4, 3), (4, 4)] for PhenomHM
+    The rule of Fourier transform is the same as S. Marsat, which is an ``unusual'' convention,
+    aiming to ensure h_lm(f) neq 0 when m > 0 and f > 0.
+    Accordingly, h_lm(f) = A_lm(f) * exp[-i Psi_lm(f)].
+    The waveform class outputs Phi_lm(f) = -Psi_lm(f), thus h_lm(f) = A_lm(f) exp[i Phi_lm(f)]
+    While, the complex conjugate of results will be taken at the end to convert to the usual FT convention.
+    
+    Parameters should be given in the form of dictionary, with the keys denoting the names of parameters, 
+    including:
+    "chirp_mass" [MSUN], "mass_ratio" [1], "spin_1z" [1], "spin_2z" [1], 
+    "coalescence_time" [DAY] (at the center of detector constellation), "coalescence_phase" [rad],
+    "luminosity_distance" [MPC], "inclination" [rad], 
+    "longitude" [rad], "latitude" [rad], "psi" [rad]
+    
+    modes = [(2, 2)] for PhenomD and [(2, 2), (2, 1), (3, 2), (3, 3), (4, 3), (4, 4)] for PhenomHM
     """
     ep_0 = np.array(
         [[1, 0, 0], 
@@ -995,7 +995,7 @@ class BBHxFDTDIResponseGenerator():
     def SpinWeightedSphericalHarmonic(self, theta, phi, l, m, s=-2):
         # Taken from arXiv:0709.0093v3 eq. (II.7), (II.8) and LALSimulation for the s=-2 case and up to l=4
         """  
-            The results are in consistency with LDC Radler manual.
+            The results are consistent with LDC Radler manual.
             theta, phi: spherical coordinates of the source frame (i.e. iota0 and phi0 in the LDC manual). 
             This function allows vectorized inputs and outputs.
         """
@@ -1065,7 +1065,7 @@ class BBHxFDTDIResponseGenerator():
         
     def WaveVector(self, parameters):
         """ 
-            returns:
+            Returns:
             k: wave vector of GW
         """
         l, b = parameters['longitude'], parameters['latitude']
@@ -1075,7 +1075,7 @@ class BBHxFDTDIResponseGenerator():
     
     def PolarBasis(self, parameters):
         """ 
-            returns:
+            Returns:
             ep, ec: polarization bases of GW in the source frame 
         """
         l, b, p = parameters['longitude'], parameters['latitude'], parameters['psi']
@@ -1108,7 +1108,7 @@ class BBHxFDTDIResponseGenerator():
             P^A_lm = K^A_lm * e^A, where A \in {+, x} should be summed over
             K^+_lm = 1/2 * [Ylm + (-1)^l Yl-m^*]
             K^x_lm = i/2 * [Ylm - (-1)^l Yl-m^*]
-            the expressions of K are consistent in LDC Radler manual and S. Marsat
+            the expressions for K are consistent with LDC Radler manual and S. Marsat
         """
         iota0, phi0 = parameters['inclination'], parameters['coalescence_phase']
         
@@ -1135,7 +1135,7 @@ class BBHxFDTDIResponseGenerator():
             k is the wave vector of GW with shape (Nevents, 3)
             Plm is the polar basis of a specific (l, m) mode with shape (Nevents, 3, 3).
             
-            arraies which should be calculated for each `ij' arm:
+            arrays which should be calculated for each `ij' arm:
             dij : (Nevents, Nfreqs) in second unit 
             nij : (Nevents, Nfreqs, 3)
             knij : (Nevents, Nfreqs)
@@ -1147,7 +1147,7 @@ class BBHxFDTDIResponseGenerator():
             Fij : (Nevents, Nfreqs) = nij \bigocross nij : Plm
             Gij : (Nevents, Nfreqs) i.e. G^lm_slr in S. Marsat
             X/Y/Z plus/minus factor : (Nevents, Nfreqs)
-            GTDI : (Nevnets, Nfreqs) i.e. transfer functions for TDI channels X, Y, Z
+            GTDI : (Nevents, Nfreqs) i.e. transfer functions for TDI channels X, Y, Z
             these values all depend on lm implicitly due to the t-f relations, thus should be calculated per mode
             the data will first be calculated at the frequency grids and  stored in dictionaries.
             
@@ -1155,7 +1155,7 @@ class BBHxFDTDIResponseGenerator():
         """
         (Nevents, Nfreqs) = t.shape
         t_flatten = t.flatten()
-        
+
         # positions 
         # p1 = self.PositionFunctions['1'](t)
         # p2 = self.PositionFunctions['2'](t)
@@ -1275,7 +1275,7 @@ class BBHxFDTDIResponseGenerator():
         F31 = self.xp.sum(self.xp.matmul(n31, Plm) * n31, axis=2)
         F32 = self.xp.sum(self.xp.matmul(n32, Plm) * n32, axis=2)
         
-        # combine into single-arm transferfunction  Gij
+        # combine into single-arm transfer function  Gij
         Gij = {}
         Gij['12'] = prefactor12 * sincfactor12 * expfactor12 * F12
         Gij['13'] = prefactor13 * sincfactor13 * expfactor13 * F13
@@ -1292,7 +1292,7 @@ class BBHxFDTDIResponseGenerator():
         D31 = self.xp.exp(1.j * TWOPI * f * d31) 
         D32 = self.xp.exp(1.j * TWOPI * f * d32) 
         
-        # combine into TDI transferfunction GTDI
+        # combine into TDI transfer function GTDI
         if TDIGeneration == '1st':
             X1plusfactor = (1. - D12 * D21) 
             X1minusfactor = (1. - D13 * D31) 
@@ -1392,7 +1392,7 @@ class BBHxFDTDIResponseGenerator():
                 interpolate_points: number of frequencies in the sparse grid 
                 interpolation_method: "Akima" or "Spline" 
         """
-        # convert scalar parameters to arraies 
+        # convert scalar parameters to arrays 
         parameter_dict = parameters.copy()
         for k, v in parameters.items():
             parameter_dict[k] = self.xp.atleast_1d(v)
@@ -1403,7 +1403,7 @@ class BBHxFDTDIResponseGenerator():
         Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes) 
         k = self.WaveVector(parameters=parameter_dict) 
 
-        # convert the coalescence time from constellaton center to SSB
+        # convert the coalescence time from constellation center to SSB
         if tc_at_constellation:
             tc_delay = self.SSBToConstellationDelay(k, parameter_dict) # (Nevent)
             parameter_dict['coalescence_time'] += -tc_delay / DAY 
