@@ -1564,5 +1564,371 @@ class BBHxFDTDIResponseGenerator():
             
         
         
+# for Space-Based GW Detector network 
+class FDTDIResponseGeneratorFRefNetwork(FDTDIResponseGeneratorFRef):
+    def __init__(self, orbit_classes, waveform_generator):
+        """ 
+        orbit_classes: list of Orbit objects, one per detector.
+        """
+        self.Ndet = len(orbit_classes)
+        self.waveform = waveform_generator
+
+        # Per-detector orbit data stored in lists (one entry per detector)
+        self.POS_time_int_list = []
+        self.POS_data_int_list = []
+        self.ARM_time_int_list = []
+        self.ARM_data_int_list = []
+        self.LTT_time_int_list = []
+        self.LTT_data_int_list = []
+        self.POS0_time_int_list = []
+        self.POS0_data_int_list = []
+
+        for orb in orbit_classes:
+            self.POS_time_int_list.append(orb.POS_time_int)          # each: (N_orbit_time,) dict of (Npt, 3)
+            self.POS_data_int_list.append(orb.POS_data_int)
+            self.ARM_time_int_list.append(orb.ARM_time_int)
+            self.ARM_data_int_list.append(orb.ARM_data_int)
+            self.LTT_time_int_list.append(orb.LTT_time_int)
+            self.LTT_data_int_list.append(orb.LTT_data_int)
+            # Constellation centre R0
+            t0 = orb.POS_time_int["1"]
+            d0 = (orb.POS_data_int["1"] + orb.POS_data_int["2"] + orb.POS_data_int["3"]) / 3.
+            self.POS0_time_int_list.append(t0)                        # (N_orbit_time,)
+            self.POS0_data_int_list.append(d0)                        # (N_orbit_time, 3)
+    
+    def Response(
+        self, 
+        parameters, 
+        freqs, 
+        fmin=1e-5,
+        fmax=1e-1,
+        fref=1e-3,
+        Nfreqs=1024,
+        modes=[(2, 2), (3, 3), (4, 4), (2, 1), (3, 2), (4, 3)],
+        tmin=None,
+        tmax=None,
+        tref_at_constellation=False,
+        TDIGeneration='2nd',
+        optimal_combination=True,
+        drop_T=False,
+        interpolation_method='cubic',
+        output_by_mode=False,
+        ):
+        
+        # ---- Parameter preparation (once for all detectors) ----
+        parameter_dict = dict()
+        for k, v in parameters.items():
+            parameter_dict[k] = np.atleast_1d(v)
+        Nevents = parameter_dict['chirp_mass'].shape[0]
+
+        parameter_dict["coalescence_time"] = parameter_dict["reference_time"]
+        parameter_dict["coalescence_phase"] = parameter_dict["reference_phase"]
+
+        Plm = self.PolarBasis_lm(parameters=parameter_dict, modes=modes)  # dict: mode -> (Nevent, Nfreq_evol, ...)
+        k = self.WaveVector(parameters=parameter_dict)                     # (Nevent, 3), in 1/second
+
+        parameter_dict.pop('coalescence_phase')
+        if tref_at_constellation:
+            raise NotImplementedError(
+                "tref_at_constellation=True not supported for network mode. "
+                "Use False for consistent SSB frame."
+            )
+        parameter_dict.pop('coalescence_time')
+
+        # ---- Waveform (shared across detectors) ----
+        if interpolation_method is None:
+            fgrids, amps, phas, tgrids = self.waveform(
+                parameters=parameter_dict, Nfreqs=Nfreqs,
+                fmin=fmin, fmax=fmax, fref=fref,
+                freqs=np.tile(freqs, (Nevents, 1)),
+            )
+        else:
+            fgrids, amps, phas, tgrids = self.waveform(
+                parameters=parameter_dict, Nfreqs=Nfreqs,
+                fmin=fmin, fmax=fmax, fref=fref, freqs=None,
+            )
+        # fgrids: (Nevent, Nfreqs_grid)  [shape depends on waveform generator]
+        # amps, phas, tgrids: dict mode -> (Nevent, Nfreqs_grid)
+
+        Nfreqs_out = freqs.shape[-1]     # Nfreqs_out = N_f (number of target frequency points)
+        fill_value = 0.
+        Nmode = len(modes)
+
+        # ---- Per-detector TDI response ----
+        all_results = []
+
+        for idet in range(self.Ndet):
+            # Point self.* to this detector's orbit data
+            self.POS_time_int = self.POS_time_int_list[idet]
+            self.POS_data_int = self.POS_data_int_list[idet]
+            self.ARM_time_int = self.ARM_time_int_list[idet]
+            self.ARM_data_int = self.ARM_data_int_list[idet]
+            self.LTT_time_int = self.LTT_time_int_list[idet]
+            self.LTT_data_int = self.LTT_data_int_list[idet]
+            self.POS0_time_int = self.POS0_time_int_list[idet]
+            self.POS0_data_int = self.POS0_data_int_list[idet]
+
+            X = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)  # (Nmode, Nevents, Nfreqs_out)
+            Y = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)
+            Z = np.zeros((Nmode, Nevents, Nfreqs_out), dtype=np.complex128)
+
+            for imode, mode in enumerate(modes):
+                _, GTDI = self.TransferFunction(
+                    t=tgrids[mode], f=fgrids, k=k, Plm=Plm[mode],
+                    TDIGeneration=TDIGeneration, tmin=tmin, tmax=tmax,
+                )
+                # GTDI['X/Y/Z']: (Nevent, Nfreqs_grid)
+                Xamp_int = GTDI['X'] * amps[mode]   # (Nevent, Nfreqs_grid)
+                Yamp_int = GTDI['Y'] * amps[mode]
+                Zamp_int = GTDI['Z'] * amps[mode]
+                phase_int = phas[mode]               # (Nevent, Nfreqs_grid)
+
+                if interpolation_method is None:
+                    X_c, Y_c, Z_c = Xamp_int, Yamp_int, Zamp_int        # (Nevent, Nfreqs_out)
+                    phase_c = phase_int                                  # (Nevent, Nfreqs_out)
+                else:
+                    Xamp_func = interp1d(x=fgrids[0], y=Xamp_int, kind=interpolation_method,
+                                         axis=1, bounds_error=False, fill_value=fill_value)
+                    Yamp_func = interp1d(x=fgrids[0], y=Yamp_int, kind=interpolation_method,
+                                         axis=1, bounds_error=False, fill_value=fill_value)
+                    Zamp_func = interp1d(x=fgrids[0], y=Zamp_int, kind=interpolation_method,
+                                         axis=1, bounds_error=False, fill_value=fill_value)
+                    phase_func = interp1d(x=fgrids[0], y=phase_int, kind=interpolation_method,
+                                          axis=1, bounds_error=False, fill_value=fill_value)
+                    X_c = Xamp_func(freqs)          # (Nevent, Nfreqs_out)
+                    Y_c = Yamp_func(freqs)
+                    Z_c = Zamp_func(freqs)
+                    phase_c = phase_func(freqs)     # (Nevent, Nfreqs_out)
+
+                X[imode] = X_c * np.exp(1.j * phase_c)  # (Nevent, Nfreqs_out) -> stored in X[imode]
+                Y[imode] = Y_c * np.exp(1.j * phase_c)
+                Z[imode] = Z_c * np.exp(1.j * phase_c)
+
+            if not output_by_mode:
+                X = np.sum(X, axis=0)  # (Nmode, Nevents, Nfreqs_out) -> (Nevents, Nfreqs_out)
+                Y = np.sum(Y, axis=0)
+                Z = np.sum(Z, axis=0)
+
+            if optimal_combination:
+                A, E, T = self.AETfromXYZ(X, Y, Z)  # each: (Nevents, Nfreqs_out) or (Nmode, Nevents, Nfreqs_out)
+                det_result = np.array([A, E]) if drop_T else np.array([A, E, T])
+                # det_result:
+                #   output_by_mode=False → (Nchan_det, Nevents, Nfreqs_out)
+                #   output_by_mode=True  → (Nchan_det, Nmode, Nevents, Nfreqs_out)
+                #   Nchan_det = 2 if drop_T else 3
+            else:
+                det_result = np.array([X, Y, Z])
+                # det_result (3, Nevents, Nfreqs_out) or (3, Nmode, Nevents, Nfreqs_out)
+
+            all_results.append(det_result)
+
+        # ---- Concatenate across detectors ----
+        results = np.concatenate(all_results, axis=0)
+        # results:
+        #   output_by_mode=False → (Ndet*Nchan_det, Nevents, Nfreqs_out)
+        #   output_by_mode=True  → (Ndet*Nchan_det, Nmode, Nevents, Nfreqs_out)
+        results = np.conjugate(results)  # same shape
+
+        if output_by_mode:
+            # results shape: (Ndet*Nchan_det, Nmode, Nevents, Nfreqs_out)
+            if Nevents == 1:
+                results = results[:, :, 0, :]  # → (Ndet*Nchan_det, Nmode, Nfreqs_out)
+        else:
+            # results shape: (Ndet*Nchan_det, Nevents, Nfreqs_out)
+            if Nevents == 1:
+                results = results[:, 0, :]      # → (Ndet*Nchan_det, Nfreqs_out)
+
+        results[np.abs(results) < 1e-25] = 0.
+        return results
+
+
+def network_covariance_inner_product(h1, h2, inv_cov):
+    """Compute h1† C^{-1} h2 for joint network data vectors.
+
+    This is the network generalisation of
+    `FrequencyDomainCovarianceInnerProduct` in Utils.py.
+
+    Parameters
+    ----------
+    h1, h2 : (Nch, Nf) complex arrays
+        Joint data vectors across all detectors/channels.
+    inv_cov : (Nf, Nch, Nch) complex array
+        Inverse network covariance per frequency.
+
+    Returns
+    -------
+    inner : complex scalar
+        Σ_f h1(f)† C^{-1}(f) h2(f)
+    """
+    d1 = h1.T[:, np.newaxis, :]          # (Nf, 1, Nch)
+    d2 = h2.T[:, :, np.newaxis]          # (Nf, Nch, 1)
+    tmp = np.matmul(np.conjugate(d1), inv_cov)  # (Nf, 1, Nch)
+    result = np.matmul(tmp, d2)           # (Nf, 1, 1)
+    return np.sum(result)
+
+
+def network_covariance_snr(h, inv_cov):
+    """Compute sqrt(h† C^{-1} h) for joint network data.
+
+    Parameters
+    ----------
+    h : (Nch, Nf) complex array
+    inv_cov : (Nf, Nch, Nch) complex array
+
+    Returns
+    -------
+    snr : real scalar
+    """
+    return np.sqrt(np.real(network_covariance_inner_product(h, h, inv_cov)))
+
+
+class NetworkHMLikelihood(HMLikelihood):
+    """Heterodyned likelihood for a network of space-based GW detectors.
+
+    Uses a single :class:`FDTDIResponseGeneratorFRefNetwork` that
+    internally handles all detectors and returns a stacked joint
+    response of shape ``(Ndet*Nchan, Nmode, Nf)``.
+
+    The joint data vector at each frequency is:
+
+        d(f) = [det0_A, det0_E, det1_A, det1_E, ..., detN_A, detN_E]ᵀ
+
+    with a (2N × 2N) covariance matrix C(f).
+
+    Parameters
+    ----------
+    response_generator : FDTDIResponseGeneratorFRefNetwork
+        Single network response generator that stacks all detectors.
+    frequency : (Nf,) array
+        Frequency grid shared by all detectors.
+    data : (Ndet*Nchan, Nf) complex array
+        Stacked frequency-domain data.
+    inverse_covariance_matrix : (Nf, Ndet*Nchan, Ndet*Nchan) complex array
+        Pre-computed C^{-1}(f) at each frequency.
+    response_kwargs : dict
+        Keyword arguments forwarded to ``response_generator.Response()``.
+        **Copied** on input — the caller's dict is not mutated.
+    Fref_waveform : bool
+        Whether the waveform uses reference_time / reference_phase.
+    use_gpu : bool
+        Use CuPy for GPU acceleration.
+    verbose : int
+        Verbosity level.
+    """
+
+    def __init__(
+        self,
+        response_generator,
+        frequency,
+        data,
+        inverse_covariance_matrix,
+        response_kwargs,
+        Fref_waveform=False,
+        use_gpu=False,
+        verbose=0,
+    ):
+        # Copy kwargs so the parent's mutation of output_by_mode
+        # does not affect the caller's dict.
+        kwargs = response_kwargs.copy()
+
+        super().__init__(
+            response_generator,
+            frequency,
+            data,
+            inverse_covariance_matrix,
+            kwargs,
+            Fref_waveform=Fref_waveform,
+            use_gpu=use_gpu,
+            verbose=verbose,
+        )
+
+        if verbose > 0:
+            n_chan = data.shape[0]
+            print(f"NetworkHMLikelihood: {n_chan} joint channels")
+
+    # ============================================================
+    # Full (non-heterodyned) log-likelihood — mode-summed network
+    # ============================================================
+
+    def full_log_like(self, parameter_array):
+        """Full log-likelihood for a single event (network, mode-summed).
+
+        log L = -½ (d - h)† C⁻¹ (d - h)
+
+        where h = Σₘ hₘ is the sum over waveform modes.
+        Handles both (Nch, Nmodes, Nf) and (Nch, Nf) responses.
+        """
+        params = self.ParamArr2ParamDict(parameter_array)
+        template_raw = self.response_generator.Response(
+            parameters=params,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        )
+
+        # Handle both per-mode (Nch, Nmodes, Nf) and mode-summed (Nch, Nf)
+        if template_raw.ndim == 3:
+            template = self.xp.sum(template_raw, axis=1)  # sum over modes → (Nch, Nf)
+        else:
+            template = template_raw                        # already (Nch, Nf)
+
+        residual = self.data - template
+
+        # residual† C⁻¹ residual  (vectorised over frequencies)
+        r = self.xp.transpose(residual)                     # (Nf, Nch)
+        rd = self.xp.conjugate(r)[:, self.xp.newaxis, :]    # (Nf, 1, Nch)
+        rv = r[:, :, self.xp.newaxis]                       # (Nf, Nch, 1)
+        tmp = self.xp.matmul(rd, self.invserse_covariance_matrix)  # (Nf, 1, Nch)
+        snr2 = self.xp.real(self.xp.sum(self.xp.matmul(tmp, rv)))
+
+        loglike = -0.5 * snr2
+        if self.use_gpu:
+            return loglike.get()
+        return loglike
+
+    def full_log_like_vectorized(self, parameter_array):
+        """Full log-likelihood for multiple events (network, mode-summed).
+
+        Parameters
+        ----------
+        parameter_array : (Nparams, Nevents) array
+
+        Returns
+        -------
+        loglikes : (Nevents,) array
+        """
+        params = self.ParamArr2ParamDict(parameter_array)
+        template_raw = self.response_generator.Response(
+            parameters=params,
+            freqs=self.frequency,
+            **self.response_kwargs,
+        )
+
+        # Handle both (Nch, Nmodes, Nevents, Nf) and (Nch, Nevents, Nf)
+        if template_raw.ndim == 4:
+            template = self.xp.sum(template_raw, axis=1)  # (Nch, Nevents, Nf)
+        else:
+            template = template_raw                        # (Nch, Nevents, Nf)
+
+        # residual: broadcast data (Nch, Nf) against template (Nch, Nev, Nf)
+        # → (Nevents, Nch, Nf) → (Nevents, Nf, Nch)
+        residual = self.xp.transpose(
+            self.data[self.xp.newaxis, :, :]
+            - self.xp.transpose(template, (1, 0, 2)),
+            (0, 2, 1),
+        )  # (Nevents, Nf, Nch)
+
+        inv_cov = self.invserse_covariance_matrix  # (Nf, Nch, Nch)
+
+        # r† C⁻¹ r per event, per frequency, then sum
+        rd = self.xp.conjugate(residual[:, :, self.xp.newaxis, :])  # (Nev, Nf, 1, Nch)
+        rv = residual[:, :, :, self.xp.newaxis]                     # (Nev, Nf, Nch, 1)
+        tmp = self.xp.matmul(rd, inv_cov)                            # (Nev, Nf, 1, Nch)
+        snr2 = self.xp.sum(self.xp.matmul(tmp, rv), axis=(1, 2, 3)) # (Nevents,)
+        loglikes = -0.5 * self.xp.real(snr2)
+
+        if self.use_gpu:
+            return loglikes.get()
+        return loglikes
+        
         
         
