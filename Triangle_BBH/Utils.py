@@ -552,8 +552,8 @@ class HMLikelihood(Likelihood):
         ) # (Nchannels, Nmodes, N_het_f)
         
         # avoid singularity when calculating r = h / h0
-        # self.het_h0[self.xp.abs(self.het_h0)<1e-25] = 1e-25
-        self.het_h0[self.xp.abs(self.het_h0)<1e-23] = 1e-23 
+        self.het_h0[self.xp.abs(self.het_h0)<1e-25] = 1e-25
+        # self.het_h0[self.xp.abs(self.het_h0)<1e-23] = 1e-23 
         
         # confine the frequency and data to be within the boundaries of sparse grid 
         inband_idx = self.xp.where((self.frequency >= self.het_frequency[0]) & (self.frequency <= self.het_frequency[-1]))[0]
